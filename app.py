@@ -1,17 +1,14 @@
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, WebRtcMode
+import gradio as gr
 import cv2
 import numpy as np
 import mediapipe as mp
 import torch
 import torch.nn as nn
 from collections import Counter
-import av
 
 # ==========================================
-# 1. SETUP & CONFIGURATION
+# 1. 配置與模型 (保持不變)
 # ==========================================
-# 必須與訓練時的順序完全一致
 gestures = np.array([
     'abang', 'ada', 'ambil', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 'arah', 
     'assalamualaikum', 'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'baik_2', 'baca', 
@@ -33,9 +30,6 @@ HIDDEN_SIZE = 64
 NUM_CLASSES = len(gestures)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# ==========================================
-# 2. DEFINE MODEL (Must match training)
-# ==========================================
 class CustomLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(CustomLSTM, self).__init__()
@@ -62,20 +56,22 @@ class CustomLSTM(nn.Module):
         x = self.output_layer(x)
         return x
 
-# 快取模型以提升效能
-@st.cache_resource
-def load_model():
-    model = CustomLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES).to(DEVICE)
-    try:
-        # map_location='cpu' 確保在沒有 GPU 的雲端也能跑
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
-        model.eval()
-        return model
-    except Exception as e:
-        return None
+# 載入模型
+model = CustomLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES).to(DEVICE)
+try:
+    # 雲端通常是 CPU，所以強制 map_location='cpu'
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
+    model.eval()
+    print("Model Loaded!")
+except Exception as e:
+    print(f"Model Load Error: {e}")
+
+# MediaPipe
+mp_holistic = mp.solutions.holistic
+mp_drawing = mp.solutions.drawing_utils
 
 # ==========================================
-# 3. HELPER FUNCTION
+# 2. 核心處理邏輯
 # ==========================================
 def extract_keypoints(results):
     if results.pose_landmarks:
@@ -86,118 +82,93 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([pose, lh, rh])
 
-# ==========================================
-# 4. WEBRTC PROCESSOR
-# ==========================================
-class SignLanguageProcessor(VideoTransformerBase):
-    def __init__(self):
-        self.model = load_model()
-        self.mp_holistic = mp.solutions.holistic
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.holistic = self.mp_holistic.Holistic(
-            min_detection_confidence=0.5, 
-            min_tracking_confidence=0.5
-        )
-        
-        self.sequence = []
-        self.predictions = []
-        self.sentence = "Waiting..."
-        self.threshold = 0.7
-        self.frame_counter = 0
-        self.SKIP_FRAMES = 2 # Process every 2nd frame to save CPU on cloud
-
-    def recv(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        
-        # 鏡像翻轉，讓使用者體驗更自然
-        img = cv2.flip(img, 1)
-        
-        # MediaPipe Detection
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img_rgb.flags.writeable = False
-        results = self.holistic.process(img_rgb)
-        img_rgb.flags.writeable = True
-
-        # Draw Landmarks
-        self.mp_drawing.draw_landmarks(img, results.left_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-        self.mp_drawing.draw_landmarks(img, results.right_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-        # 減少繪製身體連線以保持畫面乾淨，也可以根據需求加回來
-        self.mp_drawing.draw_landmarks(img, results.pose_landmarks, self.mp_holistic.POSE_CONNECTIONS)
-
-        self.frame_counter += 1
-
-        # Prediction Logic
-        if self.model and self.frame_counter % self.SKIP_FRAMES == 0:
-            keypoints = extract_keypoints(results)
-            self.sequence.append(keypoints)
-            self.sequence = self.sequence[-30:] # Keep last 30 frames
-
-            if len(self.sequence) == 30:
-                input_tensor = torch.tensor(np.expand_dims(self.sequence, axis=0), dtype=torch.float32).to(DEVICE)
-                
-                with torch.no_grad():
-                    res = self.model(input_tensor)
-                
-                probs = torch.softmax(res, dim=1).cpu().numpy()[0]
-                pred_idx = np.argmax(probs)
-                max_prob = probs[pred_idx]
-
-                # Stabilization Logic
-                self.predictions.append(pred_idx)
-                self.predictions = self.predictions[-10:]
-
-                if len(self.predictions) > 0:
-                    most_common_id, frequency = Counter(self.predictions).most_common(1)[0]
-                    # 如果同一個結果在過去10幀出現超過8次，才更新文字
-                    if frequency >= 8 and max_prob > self.threshold:
-                        self.sentence = gestures[most_common_id]
-                        cv2.rectangle(img, (0,0), (int(max_prob*200), 40), (0,255,0), -1)
-                    elif max_prob > self.threshold:
-                        cv2.rectangle(img, (0,0), (int(max_prob*200), 40), (0,255,255), -1)
-
-        # UI Overlay
-        cv2.rectangle(img, (0, 40), (640, 80), (245, 117, 16), -1)
-        cv2.putText(img, self.sentence, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# ==========================================
-# 5. STREAMLIT UI
-# ==========================================
-st.set_page_config(page_title="MSL Recognition", layout="wide")
-
-st.title("🇲🇾 Malaysian Sign Language Recognition")
-st.markdown("### AI-Powered Real-time Translator")
-
-# 檢查模型是否載入成功
-if load_model() is None:
-    st.error("⚠️ Error: 'baseline_model.pth' not found! Please check file structure.")
-
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Google STUN Server 設定 (解決手機/防火牆問題)
-    rtc_configuration = RTCConfiguration(
-        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-    )
+def predict_frame(image, state):
+    # state 是一個字典，用來在不同幀之間傳遞數據
+    if state is None:
+        state = {"sequence": [], "predictions": [], "sentence": "Waiting...", "frame_count": 0}
     
-    webrtc_streamer(
-        key="msl-translator",
-        video_processor_factory=SignLanguageProcessor,
-        mode=WebRtcMode.SENDRECV,  # <--- 改成這樣
-        rtc_configuration=rtc_configuration,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
+    if image is None:
+        return None, state
+
+    # 1. 影像前處理
+    # Gradio 傳入的是 RGB，MediaPipe 也吃 RGB
+    image.flags.writeable = False
+    
+    # 初始化 Holistic (每次都重新初始化會慢，但在函數式編程中比較安全)
+    # 為了效能，Hugging Face 會自動優化
+    with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+        results = holistic.process(image)
+    
+    image.flags.writeable = True
+    
+    # 畫圖
+    mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+    mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
+    # 減少繪製身體以提升速度
+    # mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
+
+    state["frame_count"] += 1
+    
+    # 2. 預測邏輯 (每 2 幀處理一次)
+    if state["frame_count"] % 2 == 0:
+        keypoints = extract_keypoints(results)
+        state["sequence"].append(keypoints)
+        state["sequence"] = state["sequence"][-30:] # 保持 30 幀
+
+        if len(state["sequence"]) == 30:
+            input_tensor = torch.tensor(np.expand_dims(state["sequence"], axis=0), dtype=torch.float32).to(DEVICE)
+            with torch.no_grad():
+                res = model(input_tensor)
+            
+            probs = torch.softmax(res, dim=1).cpu().numpy()[0]
+            pred_idx = np.argmax(probs)
+            max_prob = probs[pred_idx]
+            
+            state["predictions"].append(pred_idx)
+            state["predictions"] = state["predictions"][-10:]
+            
+            # 穩定化邏輯
+            if len(state["predictions"]) > 0:
+                most_common_id, frequency = Counter(state["predictions"]).most_common(1)[0]
+                if frequency >= 8 and max_prob > 0.7:
+                    state["sentence"] = gestures[most_common_id]
+                    # 綠色條條
+                    cv2.rectangle(image, (0,0), (int(max_prob*200), 40), (0,255,0), -1)
+                elif max_prob > 0.7:
+                    # 黃色條條
+                    cv2.rectangle(image, (0,0), (int(max_prob*200), 40), (0,255,255), -1)
+
+    # 3. 繪製文字
+    cv2.rectangle(image, (0, 40), (640, 80), (245, 117, 16), -1)
+    cv2.putText(image, state["sentence"], (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    # 鏡像翻轉回傳
+    return cv2.flip(image, 1), state
+
+# ==========================================
+# 3. Gradio 介面
+# ==========================================
+with gr.Blocks(title="MSL Recognition AI") as demo:
+    gr.Markdown("# 🇲🇾 Malaysian Sign Language Recognition")
+    gr.Markdown("Stand back and show your upper body. Perform signs slowly.")
+    
+    with gr.Row():
+        with gr.Column():
+            # sources=["webcam"] 開啟攝像頭
+            # streaming=True 開啟即時流模式
+            input_video = gr.Image(sources=["webcam"], streaming=True, label="Input Camera")
+        with gr.Column():
+            output_video = gr.Image(label="AI Output")
+    
+    # 用來記憶狀態的變數
+    state = gr.State()
+    
+    # 當輸入影像改變時，呼叫 predict_frame
+    input_video.stream(
+        predict_frame, 
+        [input_video, state], 
+        [output_video, state]
     )
 
-with col2:
-    st.markdown("#### User Guide")
-    st.info("""
-    1. Click **START** and allow camera access.
-    2. Step back to show your **upper body**.
-    3. Perform gestures slowly and clearly.
-    4. Ensure good lighting.
-    """)
-    
-    st.markdown("#### Supported Glosses")
-    st.text_area("List", ", ".join(gestures), height=300)
+if __name__ == "__main__":
+    demo.launch()

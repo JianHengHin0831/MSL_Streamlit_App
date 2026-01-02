@@ -1,8 +1,5 @@
-streamlit
-streamlit-webrtc
-av
-mediapipe==0.10.9
-protobuf==3.20.3
+gradio
+mediapipe
 torch
 numpy
 opencv-python-headless
