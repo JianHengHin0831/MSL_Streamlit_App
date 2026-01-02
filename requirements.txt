@@ -2,6 +2,7 @@ streamlit
 streamlit-webrtc
 # 穩定的 WebRTC 核心
 aiortc==1.6.0
+av==10.0.0   
 # 穩定的 AI 模型庫 (配合 Python 3.10)
 mediapipe==0.10.9
 protobuf==3.20.3
