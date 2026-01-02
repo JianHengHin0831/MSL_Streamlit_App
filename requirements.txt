@@ -1,5 +1,6 @@
 streamlit
 streamlit-webrtc
+aiortc==1.6.0
 av
 # 指定 MediaPipe 版本，避免裝到最新的地雷版
 mediapipe==0.10.9
