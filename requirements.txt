@@ -1,7 +1,11 @@
 streamlit
 streamlit-webrtc
 av
-mediapipe
+# 指定 MediaPipe 版本，避免裝到最新的地雷版
+mediapipe==0.10.9
+# 鎖定 Protobuf 版本，這對 MediaPipe 至關重要
+protobuf==3.20.3
 torch
 numpy
+# 雲端必須使用 headless 版本
 opencv-python-headless
