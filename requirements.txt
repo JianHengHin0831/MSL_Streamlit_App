@@ -1,12 +1,12 @@
 streamlit
 streamlit-webrtc
+# 這是修復 socket error 的關鍵
 aiortc==1.6.0
-av
-# 指定 MediaPipe 版本，避免裝到最新的地雷版
+# 這是修復 pkg-config 編譯錯誤的關鍵
+av==10.0.0
+# 這是修復 AttributeError 的關鍵
 mediapipe==0.10.9
-# 鎖定 Protobuf 版本，這對 MediaPipe 至關重要
 protobuf==3.20.3
 torch
 numpy
-# 雲端必須使用 headless 版本
 opencv-python-headless
