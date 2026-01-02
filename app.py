@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, WebRtcMode
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -184,7 +184,7 @@ with col1:
     webrtc_streamer(
         key="msl-translator",
         video_processor_factory=SignLanguageProcessor,
-        mode="sendrecv",
+        mode=WebRtcMode.SENDRECV,  # <--- 改成這樣
         rtc_configuration=rtc_configuration,
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
