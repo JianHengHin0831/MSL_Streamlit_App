@@ -1,10 +1,10 @@
 streamlit
 streamlit-webrtc
-# 這是修復 socket error 的關鍵
+# 穩定的 WebRTC 核心
 aiortc==1.6.0
-# 這是修復 pkg-config 編譯錯誤的關鍵
-av==10.0.0
-# 這是修復 AttributeError 的關鍵
+# 穩定的影音處理庫 (有現成的 Wheel，不會觸發編譯)
+av==9.2.0
+# 穩定的 AI 模型庫 (配合 Python 3.10)
 mediapipe==0.10.9
 protobuf==3.20.3
 torch
