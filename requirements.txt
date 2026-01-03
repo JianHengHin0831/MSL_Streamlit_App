@@ -1,5 +1,0 @@
-gradio
-mediapipe
-torch
-numpy
-opencv-python-headless

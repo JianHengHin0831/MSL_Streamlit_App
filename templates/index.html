@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🇲🇾 MSL Sign Recognition AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+        
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .video-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 15px;
+            background: #0f172a;
+            aspect-ratio: 4/3;
+        }
+        
+        #videoInput {
+            width: 100%;
+            height: 100%;
+            display: block;
+            transform: scaleX(-1);
+            object-fit: cover;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        
+        .translate-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .prediction-box {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        .prediction-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        #predictionText {
+            font-size: 2.5em;
+            font-weight: bold;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .translator-card {
+            background: #f5f5f5;
+            border-radius: 18px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
+        }
+
+        .translate-box {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .translate-label {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #555;
+            letter-spacing: 0.5px;
+        }
+
+        .translate-textarea {
+            min-height: 180px;
+            border: none;
+            border-radius: 14px;
+            padding: 16px;
+            font-size: 1em;
+            resize: none;
+            background: white;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .translate-textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #764ba2, 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .translator-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .alert-info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+        
+        .alert-error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            #predictionText {
+                font-size: 2em;
+            }
+            
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🇲🇾 MSL Sign Recognition AI</h1>
+            <p class="subtitle">Malaysian Sign Language recognition demo</p>
+        </div>
+        
+        <div class="content">
+            <div class="video-section">
+                <h2 style="color: #333; margin-bottom: 10px;">Video Input</h2>
+                <div class="video-container">
+                    <video id="videoInput" autoplay playsinline muted></video>
+                    <canvas id="overlayCanvas"></canvas>
+                </div>
+                
+                <div class="control-buttons">
+                    <button class="btn-primary" id="startBtn" onclick="startCamera()">📹 Start Camera</button>
+                    <button class="btn-primary" id="stopBtn" onclick="stopCamera()" disabled>⏹️ Stop</button>
+                    <button class="btn-secondary" onclick="resetPrediction()">🔄 Reset</button>
+                </div>
+            </div>
+            
+            <div class="translate-section">
+                <h2 style="color: #333; margin-bottom: 10px;">Translation Pad</h2>
+
+                <div class="prediction-box">
+                    <p class="prediction-label">Current Prediction</p>
+                    <div id="predictionText">Waiting...</div>
+                </div>
+
+                <div class="translate-box">
+                    <textarea id="sourceText" class="translate-textarea" readonly placeholder="Recognized gestures will appear here..."></textarea>
+                </div>
+
+                <div class="translator-actions">
+                    <div id="alertBox" style="flex:1;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
+    <script>
+        const videoInput = document.getElementById('videoInput');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const alertBox = document.getElementById('alertBox');
+        const sourceText = document.getElementById('sourceText');
+        const predictionText = document.getElementById('predictionText');
+
+        const CONFIG = {
+            windowSize: 30,
+            minSequence: 20,
+            predictionWindow: 6,
+            thresholdCount: 3,
+            minConfidence: 0.45
+        };
+
+        const GESTURES = [
+            'abang', 'ada', 'ambil', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 'arah',
+            'assalamualaikum', 'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'baik_2', 'baca',
+            'bapa', 'bapa_saudara', 'bas', 'bawa', 'beli', 'beli_2', 'berapa', 'berjalan', 'berlari',
+            'bila', 'bola', 'boleh', 'bomba', 'buang', 'buat', 'curi', 'dapat', 'dari', 'emak',
+            'emak_saudara', 'hari', 'hi', 'hujan', 'jahat', 'jam', 'jangan', 'jumpa', 'kacau',
+            'kakak', 'keluarga', 'kereta', 'kesakitan', 'lelaki', 'lemak', 'lupa', 'main', 'makan',
+            'mana', 'marah', 'mari', 'masa', 'masalah', 'minum', 'mohon', 'nasi', 'nasi_lemak',
+            'panas', 'panas_2', 'pandai', 'pandai_2', 'payung', 'pen', 'pensil', 'perempuan',
+            'pergi', 'pergi_2', 'perlahan', 'perlahan_2', 'pinjam', 'polis', 'pukul', 'ribut',
+            'sampai', 'saudara', 'sejuk', 'sekolah', 'siapa', 'sudah', 'suka', 'tandas', 'tanya',
+            'teh_tarik', 'teksi', 'tidur', 'tolong'
+        ];
+
+        const POSE_SIZE = 25 * 4;
+        const HAND_SIZE = 21 * 3;
+        const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;
+
+        const sequence = [];
+        const predictions = [];
+        const transcript = [];
+
+        let hands = null;
+        let camera = null;
+        let ortSession = null;
+        let ortSessionPromise = null;
+        let inputName = '';
+        let outputName = '';
+        let isStreaming = false;
+        let isInferring = false;
+        let animationId = null;
+
+        function syncCanvasDimensions() {
+            if (!videoInput.videoWidth || !videoInput.videoHeight) return;
+            overlayCanvas.width = videoInput.videoWidth;
+            overlayCanvas.height = videoInput.videoHeight;
+        }
+
+        videoInput.addEventListener('loadedmetadata', syncCanvasDimensions);
+
+        async function ensureOrtSession() {
+            if (ortSessionPromise) return ortSessionPromise;
+            showAlert('Loading on-device model...', 'info');
+            ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+            ortSessionPromise = ort.InferenceSession.create('msl_model_quant.onnx', {
+                executionProviders: ['wasm'],
+                graphOptimizationLevel: 'all'
+            }).then((session) => {
+                ortSession = session;
+                inputName = session.inputNames[0];
+                outputName = session.outputNames[0];
+                showAlert('Model loaded. Ready to infer locally.', 'info');
+                return session;
+            }).catch((error) => {
+                ortSessionPromise = null;
+                throw error;
+            });
+            return ortSessionPromise;
+        }
+
+        function ensureHands() {
+            if (hands) return hands;
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+            });
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            hands.onResults(onResults);
+            return hands;
+        }
+
+        async function startCamera() {
+            try {
+                if (typeof Hands === 'undefined') {
+                    showAlert('MediaPipe Hands not loaded. Please wait and refresh.', 'error');
+                    return;
+                }
+                await ensureOrtSession();
+                ensureHands();
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+
+                videoInput.srcObject = stream;
+                videoInput.onloadedmetadata = () => {
+                    syncCanvasDimensions();
+                };
+
+                isStreaming = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                showAlert('Processing locally with MediaPipe + ONNX.', 'info');
+
+                // Process frames continuously
+                const processFrame = async () => {
+                    if (!isStreaming) return;
+                    if (videoInput.readyState === videoInput.HAVE_ENOUGH_DATA) {
+                        await hands.send({ image: videoInput });
+                    }
+                    animationId = requestAnimationFrame(processFrame);
+                };
+                processFrame();
+
+            } catch (error) {
+                console.error(error);
+                showAlert('Error: ' + error.message, 'error');
+            }
+        }
+
+        function stopCamera() {
+            isStreaming = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            if (videoInput.srcObject) {
+                videoInput.srcObject.getTracks().forEach(track => track.stop());
+                videoInput.srcObject = null;
+            }
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+
+        function onResults(results) {
+            if (!isStreaming) return;
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            const landmarks = results.multiHandLandmarks || [];
+            landmarks.forEach((handLandmarks, index) => {
+                const label = results.multiHandedness?.[index]?.label || 'Hand';
+                const color = label === 'Left' ? '#f97316' : '#38bdf8';
+                drawConnectors(overlayCtx, handLandmarks, HAND_CONNECTIONS, { color, lineWidth: 4 });
+                drawLandmarks(overlayCtx, handLandmarks, { color, lineWidth: 2 });
+            });
+
+            const features = buildFeatureVector(results);
+            sequence.push(features);
+            if (sequence.length > CONFIG.windowSize) {
+                sequence.shift();
+            }
+
+            if (sequence.length >= CONFIG.minSequence) {
+                runInference();
+            }
+        }
+
+        function buildFeatureVector(results) {
+            const features = new Float32Array(FEATURE_SIZE);
+            const handedness = results.multiHandedness || [];
+            const landmarks = results.multiHandLandmarks || [];
+
+            let leftWritten = false;
+            let rightWritten = false;
+
+            landmarks.forEach((handLandmarks, idx) => {
+                const label = handedness[idx]?.label?.toLowerCase();
+                if (label === 'left' && !leftWritten) {
+                    writeHand(handLandmarks, POSE_SIZE, features);
+                    leftWritten = true;
+                } else if (label === 'right' && !rightWritten) {
+                    writeHand(handLandmarks, POSE_SIZE + HAND_SIZE, features);
+                    rightWritten = true;
+                } else if (!leftWritten) {
+                    writeHand(handLandmarks, POSE_SIZE, features);
+                    leftWritten = true;
+                } else if (!rightWritten) {
+                    writeHand(handLandmarks, POSE_SIZE + HAND_SIZE, features);
+                    rightWritten = true;
+                }
+            });
+
+            return features;
+        }
+
+        function writeHand(handLandmarks, offset, target) {
+            handLandmarks.forEach((lm, idx) => {
+                const base = offset + idx * 3;
+                target[base] = lm.x;
+                target[base + 1] = lm.y;
+                target[base + 2] = lm.z || 0;
+            });
+        }
+
+        async function runInference() {
+            if (!ortSession || isInferring) return;
+            isInferring = true;
+
+            try {
+                const windowed = new Float32Array(CONFIG.windowSize * FEATURE_SIZE);
+                const pad = CONFIG.windowSize - sequence.length;
+                for (let i = 0; i < CONFIG.windowSize; i++) {
+                    const srcIdx = i - pad;
+                    if (srcIdx >= 0) {
+                        windowed.set(sequence[srcIdx], i * FEATURE_SIZE);
+                    }
+                }
+
+                const inputTensor = new ort.Tensor('float32', windowed, [1, CONFIG.windowSize, FEATURE_SIZE]);
+                const feeds = { [inputName]: inputTensor };
+                const results = await ortSession.run(feeds);
+                const outputTensor = results[outputName] || Object.values(results)[0];
+                const logits = outputTensor.data || outputTensor;
+                const { index, confidence } = softmaxArgMax(logits);
+                if (index !== null) {
+                    handlePrediction(index, confidence);
+                }
+            } catch (error) {
+                console.error('Inference error', error);
+                showAlert('Inference error: ' + error.message, 'error');
+            } finally {
+                isInferring = false;
+            }
+        }
+
+        function softmaxArgMax(values) {
+            if (!values || !values.length) return { index: null, confidence: 0 };
+            let max = -Infinity;
+            values.forEach((v) => { if (v > max) max = v; });
+            let sum = 0;
+            const expVals = values.map((v) => {
+                const ev = Math.exp(v - max);
+                sum += ev;
+                return ev;
+            });
+            let bestIdx = 0;
+            let bestProb = 0;
+            expVals.forEach((v, idx) => {
+                const prob = v / sum;
+                if (prob > bestProb) {
+                    bestProb = prob;
+                    bestIdx = idx;
+                }
+            });
+            return { index: bestIdx, confidence: bestProb };
+        }
+
+        function handlePrediction(idx, confidence) {
+            predictions.push(idx);
+            if (predictions.length > CONFIG.predictionWindow) {
+                predictions.shift();
+            }
+
+            const counts = {};
+            let topIdx = null;
+            let topCount = 0;
+            predictions.forEach((id) => {
+                counts[id] = (counts[id] || 0) + 1;
+                if (counts[id] > topCount) {
+                    topCount = counts[id];
+                    topIdx = id;
+                }
+            });
+
+            if (topIdx === null) return;
+
+            if (topCount >= CONFIG.thresholdCount && confidence >= CONFIG.minConfidence) {
+                const word = GESTURES[topIdx];
+                updateTranscript(word);
+            }
+        }
+
+        function updateTranscript(word) {
+            if (!word) return;
+            predictionText.textContent = word;
+            if (transcript[transcript.length - 1] === word) return;
+            transcript.push(word);
+            sourceText.value = transcript.join(' ');
+            sourceText.scrollTop = sourceText.scrollHeight;
+        }
+
+        function resetPrediction() {
+            transcript.length = 0;
+            sequence.length = 0;
+            predictions.length = 0;
+            predictionText.textContent = 'Waiting...';
+            sourceText.value = '';
+        }
+
+        function showAlert(message, type) {
+            const alertClass = type === 'error' ? 'alert-error' : 'alert-info';
+            alertBox.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+        }
+
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+    </script>
+</body>
+</html>
