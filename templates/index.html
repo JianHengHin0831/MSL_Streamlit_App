@@ -5,6 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🇲🇾 MSL Sign Recognition AI</title>
     <style>
+        :root {
+            color-scheme: light;
+            --app-bg: linear-gradient(135deg, #eef2ff 0%, #e2e8f0 100%);
+            --container-bg: #ffffff;
+            --text-color: #0f172a;
+            --text-muted: #475569;
+            --card-bg: #f8fafc;
+            --accent-start: #2563eb;
+            --accent-end: #7c3aed;
+            --accent-contrast: #ffffff;
+            --secondary-btn-bg: #e2e8f0;
+            --secondary-btn-text: #0f172a;
+            --prediction-start: #db2777;
+            --prediction-end: #d946ef;
+            --alert-info-bg: #e0f2fe;
+            --alert-info-text: #0c4a6e;
+            --alert-error-bg: #fee2e2;
+            --alert-error-text: #991b1b;
+            --border-color: rgba(15, 23, 42, 0.08);
+            /* Light-theme panel colors */
+            --panel-bg: #f8fafc;
+            --panel-text: #0f172a;
+            /* Gesture item defaults for light theme */
+            --gesture-item-bg: #f1f5f9;
+            --gesture-item-border: rgba(15, 23, 42, 0.06);
+        }
+
+        body[data-theme="dark"] {
+            color-scheme: dark;
+            --app-bg: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
+            --container-bg: #111827;
+            --text-color: #f8fafc;
+            --text-muted: #cbd5f5;
+            --card-bg: #1e293b;
+            --accent-start: #06b6d4;
+            --accent-end: #8b5cf6;
+            --accent-contrast: #0f172a;
+            --secondary-btn-bg: #1f2937;
+            --secondary-btn-text: #f8fafc;
+            --prediction-start: #7c3aed;
+            --prediction-end: #2563eb;
+            --alert-info-bg: #0f172a;
+            --alert-info-text: #93c5fd;
+            --alert-error-bg: #3f1d2b;
+            --alert-error-text: #fca5a5;
+            --border-color: rgba(148, 163, 184, 0.3);
+            --panel-bg: #0b1120;
+            --panel-text: #e2e8f0;
+            /* Dark overrides for gesture items */
+            --gesture-item-bg: rgba(255,255,255,0.03);
+            --gesture-item-border: rgba(255,255,255,0.06);
+        }
+
+        body.text-size-normal {
+            font-size: 16px;
+        }
+
+        body.text-size-large {
+            font-size: 18px;
+        }
+
+        body.text-size-xlarge {
+            font-size: 20px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,20 +78,23 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--app-bg);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            color: var(--text-color);
+            line-height: 1.5;
+            transition: background 0.4s ease, color 0.2s ease;
         }
         
         .container {
-            background: white;
+            background: var(--container-bg);
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
             padding: 40px;
-            max-width: 900px;
+            max-width: 1400px;
             width: 100%;
         }
         
@@ -37,18 +105,41 @@
         
         h1 {
             font-size: 2.5em;
-            color: #333;
+            color: var(--text-color);
             margin-bottom: 10px;
         }
         
         .subtitle {
-            color: #666;
+            color: var(--text-muted);
             font-size: 1.1em;
+        }
+
+        .accessibility-controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .accessibility-controls button,
+        .accessibility-controls select {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            font-weight: 600;
+        }
+
+        .accessibility-controls label {
+            font-size: 0.95em;
+            color: var(--text-muted);
+            font-weight: 600;
         }
         
         .content {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 30px;
             align-items: start;
         }
@@ -63,7 +154,7 @@
             position: relative;
             overflow: hidden;
             border-radius: 15px;
-            background: #0f172a;
+            background: var(--panel-bg);
             aspect-ratio: 4/3;
         }
         
@@ -101,13 +192,14 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, var(--accent-start) 0%, var(--accent-end) 100%);
+            color: var(--accent-contrast);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
         }
         
         .btn-primary:disabled {
@@ -117,12 +209,13 @@
         }
         
         .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
+            background: var(--secondary-btn-bg);
+            color: var(--secondary-btn-text);
+            border: 1px solid var(--border-color);
         }
         
         .btn-secondary:hover {
-            background: #d0d0d0;
+            background: #cbd5f5;
         }
         
         .translate-section {
@@ -132,11 +225,12 @@
         }
 
         .prediction-box {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(135deg, var(--prediction-start) 0%, var(--prediction-end) 100%);
             padding: 30px;
             border-radius: 15px;
             color: white;
             text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
 
         .prediction-label {
@@ -155,13 +249,13 @@
         }
 
         .translator-card {
-            background: #f5f5f5;
+            background: var(--card-bg);
             border-radius: 18px;
             padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 16px;
-            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03);
+            box-shadow: inset 0 0 0 1px var(--border-color);
         }
 
         .translate-box {
@@ -184,13 +278,14 @@
             padding: 16px;
             font-size: 1em;
             resize: none;
-            background: white;
+            background: var(--container-bg);
             box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            color: var(--text-color);
         }
 
         .translate-textarea:focus {
             outline: none;
-            box-shadow: 0 0 0 2px #764ba2, 0 8px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 0 0 2px var(--accent-end), 0 8px 20px rgba(0,0,0,0.1);
         }
 
         .translator-actions {
@@ -200,24 +295,156 @@
             gap: 12px;
         }
         
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        
         .alert-info {
-            background: #e3f2fd;
-            color: #1976d2;
-            border-left: 4px solid #1976d2;
+            background: var(--alert-info-bg);
+            color: var(--alert-info-text);
+            border-left: 4px solid var(--alert-info-text);
         }
         
         .alert-error {
-            background: #ffebee;
-            color: #c62828;
-            border-left: 4px solid #c62828;
+            background: var(--alert-error-bg);
+            color: var(--alert-error-text);
+            border-left: 4px solid var(--alert-error-text);
+        }
+
+        .start-hint {
+            margin-top: 12px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: var(--card-bg);
+            border: 1px dashed var(--border-color);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .cta-pulse {
+            position: relative;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
+            animation: pulseRing 1.6s infinite;
+        }
+
+        @keyframes pulseRing {
+            0% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 18px rgba(59, 130, 246, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+            }
+        }
+
+        /* Dark-mode hover: make buttons white with black text for maximum contrast */
+        body[data-theme="dark"] .btn-primary:not(:disabled):hover,
+        body[data-theme="dark"] .btn-secondary:not(:disabled):hover {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border-color: rgba(15,23,42,0.12) !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        }
+
+        body[data-theme="dark"] .btn-primary:not(:disabled):focus,
+        body[data-theme="dark"] .btn-secondary:not(:disabled):focus {
+            outline: 3px solid rgba(255,255,255,0.06);
+            outline-offset: 2px;
+        }
+
+        .gestures-panel {
+            padding: 24px;
+            border-radius: 18px;
+            background: var(--panel-bg);
+            color: var(--panel-text);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+
+        .gestures-panel h2 {
+            margin-bottom: 10px;
+            font-size: 1.6em;
+        }
+
+        .gestures-panel p {
+            color: var(--panel-text);
+            opacity: 0.85;
+            margin-bottom: 18px;
+        }
+
+        .gestures-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            max-height: 260px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .gestures-list li {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: var(--gesture-item-bg);
+            border: 1px solid var(--gesture-item-border);
+            color: var(--panel-text);
+            text-transform: capitalize;
+            font-weight: 600;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        .transcript-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .speak-btn {
+            padding: 8px 14px;
+            font-size: 0.9em;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--secondary-btn-bg);
+            color: var(--secondary-btn-text);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .speak-btn:hover:not(:disabled) {
+            background: var(--accent-start);
+            color: white;
+            border-color: var(--accent-start);
+        }
+
+        .speak-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        body[data-theme="dark"] .speak-btn:hover:not(:disabled) {
+            background: #ffffff;
+            color: #0f172a;
+            border-color: #ffffff;
         }
         
+        @media (max-width: 1200px) {
+            .content {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
         @media (max-width: 768px) {
             .content {
                 grid-template-columns: 1fr;
@@ -234,19 +461,40 @@
             .container {
                 padding: 20px;
             }
+
+            .accessibility-controls {
+                flex-direction: column;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .cta-pulse {
+                animation: none;
+                box-shadow: none;
+            }
         }
     </style>
 </head>
-<body>
+<body data-theme="light" class="text-size-normal">
     <div class="container">
         <div class="header">
             <h1>🇲🇾 MSL Sign Recognition AI</h1>
             <p class="subtitle">Malaysian Sign Language recognition demo</p>
+            <div class="accessibility-controls" role="region" aria-label="Accessibility controls">
+                <button id="themeToggle" type="button" class="btn-secondary" aria-pressed="false">🌙 Dark Mode</button>
+                <label for="textSizeSelect">Text size
+                    <select id="textSizeSelect" aria-label="Select text size">
+                        <option value="normal" selected>Default</option>
+                        <option value="large">Large</option>
+                        <option value="xlarge">Extra Large</option>
+                    </select>
+                </label>
+            </div>
         </div>
         
         <div class="content">
             <div class="video-section">
-                <h2 style="color: #333; margin-bottom: 10px;">Video Input</h2>
+                <h2 style="color: var(--text-color); margin-bottom: 10px;">Video Input</h2>
                 <div class="video-container">
                     <video id="videoInput" autoplay playsinline muted></video>
                     <canvas id="overlayCanvas"></canvas>
@@ -257,24 +505,37 @@
                     <button class="btn-primary" id="stopBtn" onclick="stopCamera()" disabled>⏹️ Stop</button>
                     <button class="btn-secondary" onclick="resetPrediction()">🔄 Reset</button>
                 </div>
+                <div id="startHint" class="start-hint" role="status" aria-live="polite"></div>
             </div>
             
             <div class="translate-section">
-                <h2 style="color: #333; margin-bottom: 10px;">Translation Pad</h2>
+                <h2 style="color: var(--text-color); margin-bottom: 10px;">Translation Pad</h2>
 
                 <div class="prediction-box">
                     <p class="prediction-label">Current Prediction</p>
-                    <div id="predictionText">Waiting...</div>
+                    <div id="predictionText" role="status" aria-live="polite">Waiting...</div>
                 </div>
 
                 <div class="translate-box">
-                    <textarea id="sourceText" class="translate-textarea" readonly placeholder="Recognized gestures will appear here..."></textarea>
+                    <div class="transcript-controls">
+                        <label class="translate-label" for="sourceText">Recognized transcript</label>
+                        <button id="speakBtn" class="speak-btn" title="Read transcript aloud" aria-label="Speak recognized transcript">🔊 Speak</button>
+                    </div>
+                    <textarea id="sourceText" class="translate-textarea" readonly placeholder="Recognized gestures will appear here..." aria-live="polite"></textarea>
                 </div>
 
                 <div class="translator-actions">
-                    <div id="alertBox" style="flex:1;"></div>
+                    <div id="alertBox" style="flex:1;" role="region" aria-live="assertive" aria-label="Status alerts"></div>
                 </div>
             </div>
+
+            <section class="gestures-panel" aria-labelledby="gesturesTitle">
+                <div class="gestures-header">
+                    <h2 id="gesturesTitle">Gesture Reference</h2>
+                    <p>All supported Malaysian Sign Language gestures are listed for quick reference.</p>
+                </div>
+                <ul id="gesturesList" class="gestures-list" aria-label="Gestures list"></ul>
+            </section>
         </div>
     </div>
     
@@ -290,6 +551,10 @@
         const alertBox = document.getElementById('alertBox');
         const sourceText = document.getElementById('sourceText');
         const predictionText = document.getElementById('predictionText');
+        const gesturesList = document.getElementById('gesturesList');
+        const themeToggle = document.getElementById('themeToggle');
+        const textSizeSelect = document.getElementById('textSizeSelect');
+        const startHint = document.getElementById('startHint');
 
         const CONFIG = {
             windowSize: 30,              // Sequence length (30 frames, matching tcn_real_time.py)
@@ -334,6 +599,7 @@
         let isStreaming = false;
         let isInferring = false;
         let animationId = null;
+        let isSpeaking = false;
 
         function syncCanvasDimensions() {
             if (!videoInput.videoWidth || !videoInput.videoHeight) return;
@@ -342,6 +608,60 @@
         }
 
         videoInput.addEventListener('loadedmetadata', syncCanvasDimensions);
+
+        function renderGestures() {
+            if (!gesturesList) return;
+            gesturesList.innerHTML = '';
+            GESTURES.forEach((gesture) => {
+                const item = document.createElement('li');
+                item.textContent = gesture.replace(/_/g, ' ');
+                item.setAttribute('tabindex', '0');
+                gesturesList.appendChild(item);
+            });
+        }
+
+        function toggleTheme() {
+            const isDark = document.body.dataset.theme === 'dark';
+            const newTheme = isDark ? 'light' : 'dark';
+            document.body.dataset.theme = newTheme;
+            themeToggle.setAttribute('aria-pressed', String(newTheme === 'dark'));
+            themeToggle.textContent = newTheme === 'dark' ? '🌞 Light Mode' : '🌙 Dark Mode';
+            try { localStorage.setItem('msl_theme', newTheme); } catch (e) { /* ignore */ }
+        }
+
+        function handleTextSizeChange(event) {
+            const value = event.target.value;
+            document.body.classList.remove('text-size-normal', 'text-size-large', 'text-size-xlarge');
+            document.body.classList.add(`text-size-${value}`);
+            try { localStorage.setItem('msl_textSize', value); } catch (e) { /* ignore */ }
+        }
+
+        function loadPreferences() {
+            try {
+                const theme = localStorage.getItem('msl_theme') || 'light';
+                document.body.dataset.theme = theme;
+                themeToggle.setAttribute('aria-pressed', theme === 'dark');
+                themeToggle.textContent = theme === 'dark' ? '🌞 Light Mode' : '🌙 Dark Mode';
+
+                const size = localStorage.getItem('msl_textSize') || 'normal';
+                textSizeSelect.value = size;
+                document.body.classList.remove('text-size-normal', 'text-size-large', 'text-size-xlarge');
+                document.body.classList.add(`text-size-${size}`);
+            } catch (e) {
+                // ignore localStorage errors
+            }
+        }
+
+        function updateStartHint(isActive) {
+            if (!startHint) return;
+            if (isActive) {
+                startHint.textContent = 'Camera is running. Stay within the frame for best accuracy.';
+                startBtn.classList.remove('cta-pulse');
+            } else {
+                startHint.textContent = 'Press “Start Camera” to begin recognition. Allow camera permissions when prompted.';
+                startBtn.classList.add('cta-pulse');
+            }
+        }
 
         async function ensureOrtSession() {
             if (ortSessionPromise) return ortSessionPromise;
@@ -398,6 +718,7 @@
                 isStreaming = true;
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
+                updateStartHint(true);
 
                 // Process frames continuously
                 const processFrame = async () => {
@@ -427,6 +748,7 @@
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             startBtn.disabled = false;
             stopBtn.disabled = true;
+            updateStartHint(false);
         }
 
         function onResults(results) {
@@ -635,6 +957,55 @@
             alertBox.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
         }
 
+        function toggleSpeak() {
+            const text = sourceText.value.trim();
+            if (!text) {
+                showAlert('No transcript to read. Start recognizing gestures first.', 'info');
+                return;
+            }
+
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                isSpeaking = false;
+                speakBtn.textContent = '🔊 Speak';
+                speakBtn.setAttribute('aria-label', 'Speak recognized transcript');
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'id-ID';  
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+
+            utterance.onstart = () => {
+                isSpeaking = true;
+                speakBtn.textContent = '⏹️ Stop';
+                speakBtn.setAttribute('aria-label', 'Stop speaking');
+            };
+
+            utterance.onend = () => {
+                isSpeaking = false;
+                speakBtn.textContent = '🔊 Speak';
+                speakBtn.setAttribute('aria-label', 'Speak recognized transcript');
+            };
+
+            utterance.onerror = () => {
+                isSpeaking = false;
+                speakBtn.textContent = '🔊 Speak';
+                speakBtn.setAttribute('aria-label', 'Speak recognized transcript');
+                showAlert('Speech synthesis error. Please try again.', 'error');
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        loadPreferences();
+        renderGestures();
+        updateStartHint(false);
+        themeToggle.addEventListener('click', toggleTheme);
+        textSizeSelect.addEventListener('change', handleTextSizeChange);
+        speakBtn.addEventListener('click', toggleSpeak);
         startBtn.disabled = false;
         stopBtn.disabled = true;
     </script>
