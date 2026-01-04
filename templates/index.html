@@ -278,8 +278,8 @@
         </div>
     </div>
     
-    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
-    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js"></script>
     <script async src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
     <script>
         const videoInput = document.getElementById('videoInput');
@@ -292,33 +292,37 @@
         const predictionText = document.getElementById('predictionText');
 
         const CONFIG = {
-            windowSize: 30,
-            minSequence: 20,
-            predictionWindow: 6,
-            thresholdCount: 3,
-            minConfidence: 0.45
+            windowSize: 30,              // Sequence length (30 frames, matching tcn_real_time.py)
+            minSequence: 30,             // Minimum frames before inference (match tcn: len(sequence) == 30)
+            predictionWindow: 5,         // Moving average window (matches PREDICTION_SMOOTHING = 5)
+            thresholdCount: 3,           // Consensus threshold for predicted class
+            minConfidence: 0.85          // Minimum confidence threshold (matches CNN CONFIDENCE_THRESHOLD)
         };
 
-        const GESTURES = [
-            'abang', 'ada', 'ambil', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 'arah',
-            'assalamualaikum', 'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'baik_2', 'baca',
-            'bapa', 'bapa_saudara', 'bas', 'bawa', 'beli', 'beli_2', 'berapa', 'berjalan', 'berlari',
-            'bila', 'bola', 'boleh', 'bomba', 'buang', 'buat', 'curi', 'dapat', 'dari', 'emak',
-            'emak_saudara', 'hari', 'hi', 'hujan', 'jahat', 'jam', 'jangan', 'jumpa', 'kacau',
-            'kakak', 'keluarga', 'kereta', 'kesakitan', 'lelaki', 'lemak', 'lupa', 'main', 'makan',
-            'mana', 'marah', 'mari', 'masa', 'masalah', 'minum', 'mohon', 'nasi', 'nasi_lemak',
-            'panas', 'panas_2', 'pandai', 'pandai_2', 'payung', 'pen', 'pensil', 'perempuan',
-            'pergi', 'pergi_2', 'perlahan', 'perlahan_2', 'pinjam', 'polis', 'pukul', 'ribut',
-            'sampai', 'saudara', 'sejuk', 'sekolah', 'siapa', 'sudah', 'suka', 'tandas', 'tanya',
-            'teh_tarik', 'teksi', 'tidur', 'tolong'
+        // 按字母顺序排序，必须与 cnn_realtime.py 中 np.sort(actions) 一致
+        const GESTURES_UNSORTED = [
+            'abang', 'ada', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 
+            'assalamualaikum', 'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'baik_2', 'bapa',
+            'bapa_saudara', 'beli', 'beli_2', 'berapa', 'berjalan', 'berlari',
+            'bila', 'bola', 'boleh', 'bomba', 'buang', 'buat', 'curi', 'dapat', 'dari', 
+            'emak', 'emak_saudara', 'hari', 'hi', 'hujan', 'jahat', 'jangan', 'kakak', 
+            'keluarga', 'kereta', 'kesakitan', 'lelaki', 'lemak', 'main', 'mana', 'marah', 
+            'mari', 'masalah', 'minum', 'mohon', 'nasi', 'nasi_lemak', 'panas', 'panas_2', 
+            'pandai', 'pandai_2', 'payung', 'pen', 'perempuan', 'pergi_2', 'perlahan', 
+            'perlahan_2', 'pinjam', 'polis', 'pukul', 'ribut', 'saudara', 'sejuk', 'siapa', 
+            'sudah', 'tandas', 'tanya', 'teh_tarik', 'tolong'
         ];
+        const GESTURES = GESTURES_UNSORTED.slice().sort();
 
         const POSE_SIZE = 25 * 4;
         const HAND_SIZE = 21 * 3;
         const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;
+        
+        const POSE_CONNECTIONS = [[0,1],[1,3],[0,2],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
+        const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
 
         const sequence = [];
-        const predictions = [];
+        const lastPredictions = [];  // 存储每次推理的完整概率分布
         const transcript = [];
 
         let hands = null;
@@ -341,16 +345,15 @@
 
         async function ensureOrtSession() {
             if (ortSessionPromise) return ortSessionPromise;
-            showAlert('Loading on-device model...', 'info');
+            // showAlert('Loading on-device model...', 'info');
             ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
-            ortSessionPromise = ort.InferenceSession.create('msl_model_quant.onnx', {
+            ortSessionPromise = ort.InferenceSession.create('../msl_model.onnx', {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
             }).then((session) => {
                 ortSession = session;
                 inputName = session.inputNames[0];
                 outputName = session.outputNames[0];
-                showAlert('Model loaded. Ready to infer locally.', 'info');
                 return session;
             }).catch((error) => {
                 ortSessionPromise = null;
@@ -361,11 +364,11 @@
 
         function ensureHands() {
             if (hands) return hands;
-            hands = new Hands({
-                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+            hands = new Holistic({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`
             });
             hands.setOptions({
-                maxNumHands: 2,
+                staticImageMode: false,
                 modelComplexity: 1,
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
@@ -376,8 +379,8 @@
 
         async function startCamera() {
             try {
-                if (typeof Hands === 'undefined') {
-                    showAlert('MediaPipe Hands not loaded. Please wait and refresh.', 'error');
+                if (typeof Holistic === 'undefined') {
+                    showAlert('MediaPipe Holistic not loaded. Please wait and refresh.', 'error');
                     return;
                 }
                 await ensureOrtSession();
@@ -395,7 +398,6 @@
                 isStreaming = true;
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
-                showAlert('Processing locally with MediaPipe + ONNX.', 'info');
 
                 // Process frames continuously
                 const processFrame = async () => {
@@ -431,13 +433,23 @@
             if (!isStreaming) return;
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-            const landmarks = results.multiHandLandmarks || [];
-            landmarks.forEach((handLandmarks, index) => {
-                const label = results.multiHandedness?.[index]?.label || 'Hand';
-                const color = label === 'Left' ? '#f97316' : '#38bdf8';
-                drawConnectors(overlayCtx, handLandmarks, HAND_CONNECTIONS, { color, lineWidth: 4 });
-                drawLandmarks(overlayCtx, handLandmarks, { color, lineWidth: 2 });
-            });
+            // Draw Pose landmarks and connections
+            if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+                drawConnectors(overlayCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#ff6b6b', lineWidth: 2 });
+                drawLandmarks(overlayCtx, results.poseLandmarks, { color: '#ffd93d', lineWidth: 2 });
+            }
+            
+            // Draw Left Hand
+            if (results.leftHandLandmarks && results.leftHandLandmarks.length > 0) {
+                drawConnectors(overlayCtx, results.leftHandLandmarks, HAND_CONNECTIONS, { color: '#f97316', lineWidth: 4 });
+                drawLandmarks(overlayCtx, results.leftHandLandmarks, { color: '#fcd34d', lineWidth: 2 });
+            }
+
+            // Draw Right Hand
+            if (results.rightHandLandmarks && results.rightHandLandmarks.length > 0) {
+                drawConnectors(overlayCtx, results.rightHandLandmarks, HAND_CONNECTIONS, { color: '#38bdf8', lineWidth: 4 });
+                drawLandmarks(overlayCtx, results.rightHandLandmarks, { color: '#bae6fd', lineWidth: 2 });
+            }
 
             const features = buildFeatureVector(results);
             sequence.push(features);
@@ -452,28 +464,28 @@
 
         function buildFeatureVector(results) {
             const features = new Float32Array(FEATURE_SIZE);
-            const handedness = results.multiHandedness || [];
-            const landmarks = results.multiHandLandmarks || [];
-
-            let leftWritten = false;
-            let rightWritten = false;
-
-            landmarks.forEach((handLandmarks, idx) => {
-                const label = handedness[idx]?.label?.toLowerCase();
-                if (label === 'left' && !leftWritten) {
-                    writeHand(handLandmarks, POSE_SIZE, features);
-                    leftWritten = true;
-                } else if (label === 'right' && !rightWritten) {
-                    writeHand(handLandmarks, POSE_SIZE + HAND_SIZE, features);
-                    rightWritten = true;
-                } else if (!leftWritten) {
-                    writeHand(handLandmarks, POSE_SIZE, features);
-                    leftWritten = true;
-                } else if (!rightWritten) {
-                    writeHand(handLandmarks, POSE_SIZE + HAND_SIZE, features);
-                    rightWritten = true;
+            
+            // 1. Extract Pose landmarks (25 landmarks * 4: x, y, z, visibility)
+            if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+                for (let i = 0; i < Math.min(25, results.poseLandmarks.length); i++) {
+                    const lm = results.poseLandmarks[i];
+                    const base = i * 4;
+                    features[base] = lm.x;
+                    features[base + 1] = lm.y;
+                    features[base + 2] = lm.z || 0;
+                    features[base + 3] = lm.visibility || 0;
                 }
-            });
+            }
+            
+            // 2. Extract Left Hand landmarks (exactly like Python flow)
+            if (results.leftHandLandmarks && results.leftHandLandmarks.length > 0) {
+                writeHand(results.leftHandLandmarks, POSE_SIZE, features);
+            }
+
+            // 3. Extract Right Hand landmarks
+            if (results.rightHandLandmarks && results.rightHandLandmarks.length > 0) {
+                writeHand(results.rightHandLandmarks, POSE_SIZE + HAND_SIZE, features);
+            }
 
             return features;
         }
@@ -505,17 +517,37 @@
                 const feeds = { [inputName]: inputTensor };
                 const results = await ortSession.run(feeds);
                 const outputTensor = results[outputName] || Object.values(results)[0];
-                const logits = outputTensor.data || outputTensor;
-                const { index, confidence } = softmaxArgMax(logits);
-                if (index !== null) {
-                    handlePrediction(index, confidence);
+                
+                // 获取输出数据（兼容 ONNX Runtime 1.19.2）
+                let logits;
+                if (outputTensor.data) {
+                    logits = Array.from(outputTensor.data);
+                } else if (outputTensor instanceof Float32Array) {
+                    logits = Array.from(outputTensor);
+                } else {
+                    logits = outputTensor;
                 }
+                
+                // 计算 softmax 概率分布
+                const probs = softmax(logits);
+                
+                // 存储概率分布（与 cnn_realtime.py 一致）
+                handlePrediction(probs);
+                
             } catch (error) {
                 console.error('Inference error', error);
                 showAlert('Inference error: ' + error.message, 'error');
             } finally {
                 isInferring = false;
             }
+        }
+
+        // 标准 softmax 实现
+        function softmax(logits) {
+            const max = Math.max(...logits);
+            const exps = logits.map(x => Math.exp(x - max));
+            const sumExps = exps.reduce((a, b) => a + b, 0);
+            return exps.map(x => x / sumExps);
         }
 
         function softmaxArgMax(values) {
@@ -540,29 +572,45 @@
             return { index: bestIdx, confidence: bestProb };
         }
 
-        function handlePrediction(idx, confidence) {
-            predictions.push(idx);
-            if (predictions.length > CONFIG.predictionWindow) {
-                predictions.shift();
+        function handlePrediction(probs) {
+            // 存储概率分布（与 cnn_realtime.py 的 last_predictions 一致）
+            lastPredictions.push(probs);
+            if (lastPredictions.length > CONFIG.predictionWindow) {
+                lastPredictions.shift();
             }
 
-            const counts = {};
-            let topIdx = null;
-            let topCount = 0;
-            predictions.forEach((id) => {
-                counts[id] = (counts[id] || 0) + 1;
-                if (counts[id] > topCount) {
-                    topCount = counts[id];
-                    topIdx = id;
-                }
-            });
+            // 对概率分布求平均（与 cnn_realtime.py 的 avg_probs = np.mean(last_predictions, axis=0) 一致）
+            const avgProbs = averageProbs(lastPredictions);
+            const bestIdx = argmax(avgProbs);
+            const confidence = avgProbs[bestIdx];
 
-            if (topIdx === null) return;
-
-            if (topCount >= CONFIG.thresholdCount && confidence >= CONFIG.minConfidence) {
-                const word = GESTURES[topIdx];
+            // 应用阈值（与 cnn_realtime.py 的 if confidence > CONFIDENCE_THRESHOLD 一致）
+            if (confidence >= CONFIG.minConfidence) {
+                const word = GESTURES[bestIdx];
                 updateTranscript(word);
             }
+        }
+
+        // 对多个概率分布求平均
+        function averageProbs(probsList) {
+            if (probsList.length === 0) return new Array(GESTURES.length).fill(0);
+            
+            const numClasses = probsList[0].length;
+            const avg = new Array(numClasses).fill(0);
+            
+            for (let i = 0; i < numClasses; i++) {
+                for (let j = 0; j < probsList.length; j++) {
+                    avg[i] += probsList[j][i];
+                }
+                avg[i] /= probsList.length;
+            }
+            
+            return avg;
+        }
+
+        // 返回最大值的索引
+        function argmax(arr) {
+            return arr.reduce((maxIdx, val, idx, array) => val > array[maxIdx] ? idx : maxIdx, 0);
         }
 
         function updateTranscript(word) {
@@ -577,7 +625,7 @@
         function resetPrediction() {
             transcript.length = 0;
             sequence.length = 0;
-            predictions.length = 0;
+            lastPredictions.length = 0;
             predictionText.textContent = 'Waiting...';
             sourceText.value = '';
         }

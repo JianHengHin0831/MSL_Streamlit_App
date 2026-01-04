@@ -8,44 +8,50 @@ from onnxruntime.quantization import quantize_dynamic, QuantType
 # 1. 配置 (必須與訓練時完全一致)
 # ==========================================
 INPUT_SIZE = 226        # 30 frames x (Pose + Left Hand + Right Hand)
-HIDDEN_SIZE = 64
-NUM_CLASSES = 90        # ⚠️ 注意：如果你只訓練了 10 個詞，這裡要改成 10
-MODEL_PATH = 'baseline_model.pth'
+NUM_CLASSES = 72       
+MODEL_PATH = 'cnn_model.pth'
 ONNX_OUTPUT_PATH = 'msl_model.onnx'
 QUANTIZED_OUTPUT_PATH = 'msl_model_quant.onnx'
 
 # ==========================================
-# 2. 定義模型架構 (必須與訓練代碼完全一致)
+# 2. 定義模型架構 (CNN) (必須與訓練代碼一致)
 # ==========================================
-class CustomLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(CustomLSTM, self).__init__()
-        self.lstm1 = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.lstm2 = nn.LSTM(hidden_size, hidden_size, batch_first=True)
-        self.lstm3 = nn.LSTM(hidden_size, hidden_size, batch_first=True)
-        self.fc1 = nn.Linear(hidden_size, 64)
-        self.fc2 = nn.Linear(64, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, 32)
-        self.fc5 = nn.Linear(32, 32)
-        self.output_layer = nn.Linear(32, num_classes)
+class SignLanguageCNN(nn.Module):
+    def __init__(self, input_size, num_classes):
+        super(SignLanguageCNN, self).__init__()
+        
+        # Layer 1
+        self.conv1 = nn.Conv1d(in_channels=input_size, out_channels=64, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(64)
+        
+        # Layer 2
+        self.conv2 = nn.Conv1d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm1d(128)
+        
+        # Layer 3
+        self.conv3 = nn.Conv1d(in_channels=128, out_channels=256, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm1d(256)
+        
+        # Pooling & Classification
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Linear(256, num_classes)
+        self.dropout = nn.Dropout(0.3)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        # LSTM 層
-        x, _ = self.lstm1(x)
-        x, _ = self.lstm2(x)
-        x, _ = self.lstm3(x)
+        # Input x shape: (Batch, Sequence_Length, Features) -> (Batch, 30, 226)
+        # CNN expects: (Batch, Channels, Length) -> (Batch, 226, 30)
+        x = x.permute(0, 2, 1)
         
-        # 取最後一個時間點的特徵 (Last Timestep)
-        x = x[:, -1, :] 
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x)))
         
-        # 全連接層
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))
-        x = torch.relu(self.fc4(x))
-        x = torch.relu(self.fc5(x))
-        x = self.output_layer(x)
+        x = self.pool(x)       # (Batch, 256, 1)
+        x = x.flatten(1)       # (Batch, 256)
+        x = self.dropout(x)
+        
+        x = self.fc(x)
         return x
 
 # ==========================================
@@ -54,8 +60,8 @@ class CustomLSTM(nn.Module):
 def convert():
     print(f"正在載入模型: {MODEL_PATH} ...")
     
-    # 初始化模型
-    model = CustomLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES)
+    # 初始化模型 (CNN)
+    model = SignLanguageCNN(INPUT_SIZE, NUM_CLASSES)
     
     # 載入權重 (強制使用 CPU 載入，避免 CUDA 報錯)
     try:
@@ -73,34 +79,46 @@ def convert():
     dummy_input = torch.randn(1, 30, INPUT_SIZE)
 
     print(f"正在轉換為 ONNX: {ONNX_OUTPUT_PATH} ...")
-    
-    # 導出模型
-    torch.onnx.export(
-        model,                      # 你的模型
-        dummy_input,                # 虛擬輸入
-        ONNX_OUTPUT_PATH,           # 輸出檔名
-        export_params=True,         # 是否儲存權重
-        opset_version=12,           # ONNX 版本 (11 或 12 比較穩定)
-        do_constant_folding=True,   # 優化常數折疊
-        input_names=['input'],      # 輸入層名稱
-        output_names=['output'],    # 輸出層名稱
-        dynamic_axes={              # 設定動態維度 (讓 Batch Size 可以變動)
-            'input': {0: 'batch_size'},
-            'output': {0: 'batch_size'}
-        }
-    )
 
-    print(f"🎉 轉換完成！檔案已儲存為: {ONNX_OUTPUT_PATH}")
+    # 導出模型 (使用 opset 13 並允許序列長度動態)
+    try:
+        torch.onnx.export(
+            model,
+            dummy_input,
+            ONNX_OUTPUT_PATH,
+            export_params=True,
+            opset_version=13,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={
+                'input': {0: 'batch_size', 1: 'seq_len'},
+                'output': {0: 'batch_size'}
+            }
+        )
+        print(f"🎉 轉換完成！檔案已儲存為: {ONNX_OUTPUT_PATH}")
+    except Exception as e:
+        print(f"❌ ONNX 導出失敗: {e}")
+        return
 
     # ==========================================
     # 4. 量化模型 (加速推理)
     # ==========================================
     try:
         print(f"⚡ 正在量化模型 -> {QUANTIZED_OUTPUT_PATH} ...")
-        quantize_dynamic(ONNX_OUTPUT_PATH, QUANTIZED_OUTPUT_PATH, weight_type=QuantType.QInt8)
+        # 避免對 Conv 層進行量化（某些 onnxruntime 版本可能不支援 ConvInteger），
+        # 只對線性/MatMul/Gemm 類型的節點進行量化以保證可載入性
+        quantize_dynamic(
+            ONNX_OUTPUT_PATH,
+            QUANTIZED_OUTPUT_PATH,
+            weight_type=QuantType.QInt8,
+            op_types_to_quantize=['MatMul', 'Gemm']
+        )
         print(f"✅ 量化完成！檔案已儲存為: {QUANTIZED_OUTPUT_PATH}")
+        print("ℹ️ 注意：如果你想要對 Conv 也進行量化，請更新 onnxruntime 到最新版本，或使用靜態量化流程 (需校準資料)。")
     except Exception as e:
         print(f"⚠️ 量化失敗: {e}")
+        print("🔧 嘗試：升級 onnxruntime (`pip install --upgrade onnxruntime`) 或使用只量化線性層的方法。")
 
     print("你可以使用 https://netron.app/ 查看生成的模型結構。")
 
