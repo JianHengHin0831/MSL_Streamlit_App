@@ -175,6 +175,196 @@
             pointer-events: none;
         }
         
+        /* Camera Status Bar */
+        .camera-status-bar {
+            display: flex;
+            gap: 20px;
+            padding: 12px 16px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+            font-size: 0.95em;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        
+        .status-value {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-color);
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-indicator.off {
+            background: #9ca3af;
+        }
+        
+        .status-indicator.on {
+            background: #10b981;
+            animation: statusPulse 2s infinite;
+        }
+        
+        .status-indicator.denied {
+            background: #ef4444;
+        }
+        
+        .status-indicator.pending {
+            background: #f59e0b;
+            animation: statusPulse 1s infinite;
+        }
+        
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Demo Video */
+        .demo-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+        
+        /* Demo Overlay */
+        .demo-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .demo-overlay:hover {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.96));
+        }
+        
+        .demo-overlay.hidden {
+            display: none;
+        }
+        
+        .demo-content {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+        }
+        
+        .demo-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            animation: demoIconBounce 2s infinite;
+        }
+        
+        @keyframes demoIconBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .demo-content h3 {
+            font-size: 1.6em;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        
+        .demo-content p {
+            font-size: 1em;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        /* Permission Modal */
+        .permission-modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+        
+        .permission-content {
+            background: var(--card-bg);
+            padding: 32px;
+            border-radius: 16px;
+            text-align: center;
+            color: var(--text-color);
+            max-width: 400px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .permission-icon {
+            font-size: 3.5em;
+            margin-bottom: 16px;
+        }
+        
+        .permission-content h3 {
+            font-size: 1.4em;
+            margin-bottom: 12px;
+            color: #ef4444;
+        }
+        
+        .permission-content p {
+            opacity: 0.85;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .permission-steps {
+            text-align: left;
+            padding: 0 0 0 20px;
+            margin: 16px 0;
+            opacity: 0.8;
+            line-height: 1.8;
+        }
+        
+        .permission-steps li {
+            margin-bottom: 8px;
+        }
+        
+        .permission-help-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+            margin-top: 16px;
+        }
+        
+        .permission-help-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.35);
+        }
+        
         .control-buttons {
             display: flex;
             gap: 10px;
@@ -249,6 +439,94 @@
         button[onclick="resetPrediction()"]:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(139, 92, 246, 0.35);
+        }
+        
+        /* Demo Button */
+        .btn-demo {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            color: white !important;
+        }
+        
+        .btn-demo:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.35);
+        }
+        
+        /* Demo Modal */
+        .demo-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .demo-modal-content {
+            position: relative;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 12px;
+            max-width: 70%;
+            width: 100%;
+            max-height: auto;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .demo-modal-content h3 {
+            color: var(--text-color);
+            margin: 0 0 8px 0;
+            font-size: 1em;
+            text-align: center;
+        }
+        
+        .demo-modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5em;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .demo-modal-close:hover {
+            background: var(--border-color);
+            color: var(--text-color);
+        }
+        
+        .modal-video {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            max-height: 55vh;
+            border-radius: 10px;
+            background: black;
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .demo-modal-content {
+                max-width: 90%;
+                padding: 12px;
+            }
+            
+            .modal-video {
+                width: 100%;
+            }
         }
         
         .translate-section {
@@ -528,15 +806,77 @@
         <div class="content">
             <div class="video-section">
                 <h2 style="color: var(--text-color); margin-bottom: 10px;">Video Input</h2>
+                
+                <!-- Camera Status Bar -->
+                <div class="camera-status-bar" id="cameraStatusBar">
+                    <div class="status-item">
+                        <span class="status-label">Camera:</span>
+                        <span class="status-value camera-status" id="cameraStatus">
+                            <span class="status-indicator off"></span> Off
+                        </span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Permission:</span>
+                        <span class="status-value permission-status" id="permissionStatus">
+                            <span class="status-indicator pending"></span> Pending
+                        </span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">FPS:</span>
+                        <span class="status-value" id="fpsDisplay">-- fps</span>
+                    </div>
+                </div>
+                
+                <!-- Video Container with Demo & Overlay -->
                 <div class="video-container">
                     <video id="videoInput" autoplay playsinline muted></video>
+                    <video id="demoVideo" class="demo-video" autoplay loop muted playsinline></video>
                     <canvas id="overlayCanvas"></canvas>
+                    
+                    <!-- Demo Overlay Layer -->
+                    <div class="demo-overlay" id="demoOverlay">
+                        <div class="demo-content">
+                            <div class="demo-icon">🎥</div>
+                            <h3>Welcome to MSL Sign Recognition</h3>
+                            <p>Click <strong>"Start Camera"</strong> to begin</p>
+                            <p style="font-size: 0.9em; opacity: 0.8;">Allow camera permissions when prompted</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Permission Denied Modal -->
+                    <div class="permission-modal" id="permissionModal" style="display: none;">
+                        <div class="permission-content">
+                            <div class="permission-icon">⚠️</div>
+                            <h3>Camera Permission Denied</h3>
+                            <p>To enable sign recognition, please allow camera access:</p>
+                            <ol class="permission-steps">
+                                <li>Click the lock icon in your browser's address bar</li>
+                                <li>Find "Camera" in the permissions list</li>
+                                <li>Change it from "Blocked" to "Allow"</li>
+                                <li>Refresh the page and try again</li>
+                            </ol>
+                            <button class="permission-help-btn" onclick="requestCameraPermission()">🔄 Try Again</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="control-buttons">
                     <button class="btn-primary" id="startBtn" onclick="startCamera()">📹 Start Camera</button>
                     <button class="btn-primary" id="stopBtn" onclick="stopCamera()" disabled>⏹️ Stop</button>
                     <button class="btn-secondary" onclick="resetPrediction()">🔄 Reset</button>
+                    <button class="btn-demo" id="demoBtn" onclick="openDemoModal()">🎬 Watch Demo</button>
+                </div>
+                
+                <!-- Demo Video Modal -->
+                <div class="demo-modal" id="demoModal" style="display: none;">
+                    <div class="demo-modal-content">
+                        <button class="demo-modal-close" onclick="closeDemoModal()">✕</button>
+                        <h3>MSL Sign Recognition Demo</h3>
+                        <video id="modalDemoVideo" class="modal-video" controls>
+                            <source src="./demo1.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
                 </div>
                 <div id="startHint" class="start-hint" role="status" aria-live="polite"></div>
             </div>
@@ -588,6 +928,13 @@
         const themeToggle = document.getElementById('themeToggle');
         const textSizeSelect = document.getElementById('textSizeSelect');
         const startHint = document.getElementById('startHint');
+        const demoVideo = document.getElementById('demoVideo');
+        const demoOverlay = document.getElementById('demoOverlay');
+        const permissionModal = document.getElementById('permissionModal');
+        const cameraStatusBar = document.getElementById('cameraStatusBar');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const permissionStatus = document.getElementById('permissionStatus');
+        const fpsDisplay = document.getElementById('fpsDisplay');
 
         const CONFIG = {
             windowSize: 30,              // Sequence length (30 frames, matching tcn_real_time.py)
@@ -633,6 +980,14 @@
         let isInferring = false;
         let animationId = null;
         let isSpeaking = false;
+        
+        // Camera state tracking
+        let cameraOn = false;
+        let permissionGranted = false;
+        let permissionDenied = false;
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        let currentFps = 0;
 
         function syncCanvasDimensions() {
             if (!videoInput.videoWidth || !videoInput.videoHeight) return;
@@ -700,7 +1055,7 @@
             if (ortSessionPromise) return ortSessionPromise;
             // showAlert('Loading on-device model...', 'info');
             ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
-            ortSessionPromise = ort.InferenceSession.create('../msl_model.onnx', {
+            ortSessionPromise = ort.InferenceSession.create('msl_model.onnx', {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
             }).then((session) => {
@@ -749,14 +1104,26 @@
                 };
 
                 isStreaming = true;
+                cameraOn = true;
+                permissionGranted = true;
+                permissionDenied = false;
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 updateStartHint(true);
+                updateCameraStatus();
+                updatePermissionStatus();
+                
+                // Hide demo overlay
+                if (demoOverlay) {
+                    demoOverlay.classList.add('hidden');
+                }
 
                 // Process frames continuously
                 const processFrame = async () => {
                     if (!isStreaming) return;
                     if (videoInput.readyState === videoInput.HAVE_ENOUGH_DATA) {
+                        frameCount++;
+                        updateFpsDisplay();
                         await hands.send({ image: videoInput });
                     }
                     animationId = requestAnimationFrame(processFrame);
@@ -765,12 +1132,19 @@
 
             } catch (error) {
                 console.error(error);
-                showAlert('Error: ' + error.message, 'error');
+                if (error.name === 'NotAllowedError') {
+                    permissionDenied = true;
+                    permissionGranted = false;
+                    updatePermissionStatus();
+                } else {
+                    showAlert('Error: ' + error.message, 'error');
+                }
             }
         }
 
         function stopCamera() {
             isStreaming = false;
+            cameraOn = false;
             if (animationId) {
                 cancelAnimationFrame(animationId);
             }
@@ -782,6 +1156,12 @@
             startBtn.disabled = false;
             stopBtn.disabled = true;
             updateStartHint(false);
+            updateCameraStatus();
+            
+            // Show demo overlay again
+            if (demoOverlay) {
+                demoOverlay.classList.remove('hidden');
+            }
         }
 
         function onResults(results) {
@@ -1033,9 +1413,138 @@
             window.speechSynthesis.speak(utterance);
         }
 
+        // ===== Demo Modal Management =====
+        function openDemoModal() {
+            const demoModal = document.getElementById('demoModal');
+            const modalVideo = document.getElementById('modalDemoVideo');
+            if (demoModal) {
+                demoModal.style.display = 'flex';
+                if (modalVideo) {
+                    modalVideo.play();
+                }
+            }
+        }
+
+        function closeDemoModal() {
+            const demoModal = document.getElementById('demoModal');
+            const modalVideo = document.getElementById('modalDemoVideo');
+            if (demoModal) {
+                demoModal.style.display = 'none';
+                if (modalVideo) {
+                    modalVideo.pause();
+                }
+            }
+        }
+
+        // Close modal when clicking outside the content
+        document.addEventListener('DOMContentLoaded', () => {
+            const demoModal = document.getElementById('demoModal');
+            if (demoModal) {
+                demoModal.addEventListener('click', (e) => {
+                    if (e.target === demoModal) {
+                        closeDemoModal();
+                    }
+                });
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDemoModal();
+            }
+        });
+        
+        // ===== Camera State Management =====
+        function updateCameraStatus() {
+            if (cameraOn) {
+                cameraStatus.innerHTML = '<span class="status-indicator on"></span> On';
+            } else {
+                cameraStatus.innerHTML = '<span class="status-indicator off"></span> Off';
+            }
+        }
+
+        function updatePermissionStatus() {
+            const permElement = permissionStatus;
+            if (permissionDenied) {
+                permElement.innerHTML = '<span class="status-indicator denied"></span> Denied';
+                showPermissionModal();
+            } else if (permissionGranted) {
+                permElement.innerHTML = '<span class="status-indicator on"></span> Granted';
+                permissionModal.style.display = 'none';
+            } else {
+                permElement.innerHTML = '<span class="status-indicator pending"></span> Pending';
+            }
+        }
+
+        function updateFpsDisplay() {
+            const now = Date.now();
+            const elapsed = now - lastFpsTime;
+            if (elapsed >= 1000) {
+                currentFps = frameCount;
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+            if (fpsDisplay) {
+                fpsDisplay.textContent = currentFps + ' fps';
+            }
+        }
+
+        function showPermissionModal() {
+            if (permissionDenied && permissionModal) {
+                permissionModal.style.display = 'flex';
+            }
+        }
+
+        function hidePermissionModal() {
+            if (permissionModal) {
+                permissionModal.style.display = 'none';
+            }
+        }
+
+        function initializeDemoVideo() {
+            if (demoVideo) {
+                demoVideo.src = './demo1.mp4';
+                demoVideo.loop = true;
+                demoVideo.muted = true;
+                demoVideo.autoplay = true;
+                // Enable autoplay with proper attributes
+                demoVideo.setAttribute('playsinline', '');
+                demoVideo.addEventListener('canplay', () => {
+                    demoVideo.play().catch(err => {
+                        console.log('Demo video autoplay:', err.message);
+                    });
+                });
+            }
+        }
+
+        async function requestCameraPermission() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+                permissionGranted = true;
+                permissionDenied = false;
+                updatePermissionStatus();
+                hidePermissionModal();
+            } catch (error) {
+                if (error.name === 'NotAllowedError') {
+                    permissionDenied = true;
+                    permissionGranted = false;
+                } else if (error.name === 'NotFoundError') {
+                    showAlert('No camera device found.', 'error');
+                } else {
+                    console.error('Permission check error:', error);
+                }
+                updatePermissionStatus();
+            }
+        }
+
         loadPreferences();
         renderGestures();
+        initializeDemoVideo();
         updateStartHint(false);
+        updateCameraStatus();
+        requestCameraPermission();  // Check permission on page load
         themeToggle.addEventListener('click', toggleTheme);
         textSizeSelect.addEventListener('change', handleTextSizeChange);
         speakBtn.addEventListener('click', toggleSpeak);

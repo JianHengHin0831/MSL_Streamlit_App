@@ -1,8 +1,0 @@
-flask
-flask-cors
-opencv-python
-mediapipe==0.10.9
-numpy
-Pillow
-onnxruntime
-protobuf==3.20.3
