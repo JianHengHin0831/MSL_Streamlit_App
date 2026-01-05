@@ -939,9 +939,9 @@
         const CONFIG = {
             windowSize: 30,              // Sequence length (30 frames, matching tcn_real_time.py)
             minSequence: 30,             // Minimum frames before inference (match tcn: len(sequence) == 30)
-            predictionWindow: 5,         // Moving average window (matches PREDICTION_SMOOTHING = 5)
-            thresholdCount: 3,           // Consensus threshold for predicted class
-            minConfidence: 0.85          // Minimum confidence threshold (matches CNN CONFIDENCE_THRESHOLD)
+            movementThreshold: 0.012,    // Movement threshold for hand std (tcn_real_time.py)
+            minConfidence: 0.65,         // Minimum confidence threshold (matches TCN PREDICTION GATE)
+            noHandLimit: 60              // Frames to wait before clearing buffer (flicker protection) - increased for longer tolerance
         };
 
         // 按字母顺序排序，必须与 cnn_realtime.py 中 np.sort(actions) 一致
@@ -959,15 +959,14 @@
         ];
         const GESTURES = GESTURES_UNSORTED.slice().sort();
 
-        const POSE_SIZE = 25 * 4;
-        const HAND_SIZE = 21 * 3;
-        const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;
+        const POSE_SIZE = 25 * 2;       // 25 landmarks * 2 (x, y only, no z or visibility)
+        const HAND_SIZE = 21 * 2;       // 21 landmarks * 2 (x, y only)
+        const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;  // 50 + 42 + 42 = 134
         
         const POSE_CONNECTIONS = [[0,1],[1,3],[0,2],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
         const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
 
         const sequence = [];
-        const lastPredictions = [];  // 存储每次推理的完整概率分布
         const transcript = [];
 
         let hands = null;
@@ -980,6 +979,7 @@
         let isInferring = false;
         let animationId = null;
         let isSpeaking = false;
+        let noHandCounter = 0;  // Tracks how long hands have been missing (flicker protection)
         
         // Camera state tracking
         let cameraOn = false;
@@ -1055,7 +1055,7 @@
             if (ortSessionPromise) return ortSessionPromise;
             // showAlert('Loading on-device model...', 'info');
             ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
-            ortSessionPromise = ort.InferenceSession.create('msl_model.onnx', {
+            ortSessionPromise = ort.InferenceSession.create('tcn_model.onnx', {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'
             }).then((session) => {
@@ -1164,6 +1164,25 @@
             }
         }
 
+        // Center normalization using hip points (indices 22, 24 in pose landmarks)
+        // Matches tcn_real_time.py center_normalization function
+        function centerNormalization(sequence) {
+            const res = [];
+            for (let t = 0; t < sequence.length; t++) {
+                const frame = new Float32Array(sequence[t]);
+                const cx = (frame[22] + frame[24]) / 2;   // Match numpy indexing from tcn_real_time.py
+                const cy = (frame[23] + frame[25]) / 2;
+                
+                // Subtract center from all x,y coordinates
+                for (let i = 0; i < frame.length; i += 2) {
+                    frame[i] -= cx;        // x coordinate
+                    frame[i + 1] -= cy;    // y coordinate
+                }
+                res.push(frame);
+            }
+            return res;
+        }
+
         function onResults(results) {
             if (!isStreaming) return;
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -1186,33 +1205,45 @@
                 drawLandmarks(overlayCtx, results.rightHandLandmarks, { color: '#bae6fd', lineWidth: 2 });
             }
 
-            const features = buildFeatureVector(results);
-            sequence.push(features);
-            if (sequence.length > CONFIG.windowSize) {
-                sequence.shift();
-            }
+            // Check if hands are in frame (matching tcn_real_time.py hand detection)
+            const handsInFrame = results.leftHandLandmarks || results.rightHandLandmarks;
 
-            if (sequence.length >= CONFIG.minSequence) {
-                runInference();
+            if (handsInFrame) {
+                noHandCounter = 0;  // Reset the "No Hand" counter because we found them
+                const features = buildFeatureVector(results);
+                sequence.push(features);
+                if (sequence.length > CONFIG.windowSize) {
+                    sequence.shift();
+                }
+
+                if (sequence.length >= CONFIG.minSequence) {
+                    runInference();
+                }
+            } else {
+                // Hands are missing, but we WAIT before clearing (flicker protection)
+                noHandCounter++;
+                
+                if (noHandCounter > CONFIG.noHandLimit) {
+                    sequence.length = 0;  // Only clear buffer after patience expires
+                    predictionText.textContent = 'Idle (Hands Lost)';
+                }
             }
         }
 
         function buildFeatureVector(results) {
             const features = new Float32Array(FEATURE_SIZE);
             
-            // 1. Extract Pose landmarks (25 landmarks * 4: x, y, z, visibility)
+            // 1. Extract Pose landmarks (25 landmarks * 2: x, y only - matching tcn_real_time.py)
             if (results.poseLandmarks && results.poseLandmarks.length > 0) {
                 for (let i = 0; i < Math.min(25, results.poseLandmarks.length); i++) {
                     const lm = results.poseLandmarks[i];
-                    const base = i * 4;
+                    const base = i * 2;
                     features[base] = lm.x;
                     features[base + 1] = lm.y;
-                    features[base + 2] = lm.z || 0;
-                    features[base + 3] = lm.visibility || 0;
                 }
             }
             
-            // 2. Extract Left Hand landmarks (exactly like Python flow)
+            // 2. Extract Left Hand landmarks (21 landmarks * 2: x, y only)
             if (results.leftHandLandmarks && results.leftHandLandmarks.length > 0) {
                 writeHand(results.leftHandLandmarks, POSE_SIZE, features);
             }
@@ -1227,10 +1258,9 @@
 
         function writeHand(handLandmarks, offset, target) {
             handLandmarks.forEach((lm, idx) => {
-                const base = offset + idx * 3;
+                const base = offset + idx * 2;
                 target[base] = lm.x;
                 target[base + 1] = lm.y;
-                target[base + 2] = lm.z || 0;
             });
         }
 
@@ -1239,12 +1269,23 @@
             isInferring = true;
 
             try {
+                // Check for movement before inference (matching tcn_real_time.py movement check)
+                const movement = calculateMovement(sequence);
+                if (movement <= CONFIG.movementThreshold) {
+                    // Not enough movement detected, skip inference
+                    isInferring = false;
+                    return;
+                }
+
+                // Apply center normalization (matching tcn_real_time.py)
+                const normalizedSeq = centerNormalization(sequence);
+                
                 const windowed = new Float32Array(CONFIG.windowSize * FEATURE_SIZE);
-                const pad = CONFIG.windowSize - sequence.length;
+                const pad = CONFIG.windowSize - normalizedSeq.length;
                 for (let i = 0; i < CONFIG.windowSize; i++) {
                     const srcIdx = i - pad;
                     if (srcIdx >= 0) {
-                        windowed.set(sequence[srcIdx], i * FEATURE_SIZE);
+                        windowed.set(normalizedSeq[srcIdx], i * FEATURE_SIZE);
                     }
                 }
 
@@ -1253,7 +1294,7 @@
                 const results = await ortSession.run(feeds);
                 const outputTensor = results[outputName] || Object.values(results)[0];
                 
-                // 获取输出数据（兼容 ONNX Runtime 1.19.2）
+                // Get output data (compatible with ONNX Runtime 1.19.2)
                 let logits;
                 if (outputTensor.data) {
                     logits = Array.from(outputTensor.data);
@@ -1263,11 +1304,17 @@
                     logits = outputTensor;
                 }
                 
-                // 计算 softmax 概率分布
+                // Calculate softmax probabilities
                 const probs = softmax(logits);
                 
-                // 存储概率分布（与 cnn_realtime.py 一致）
-                handlePrediction(probs);
+                // Get best prediction and check confidence (matching TCN prediction gate)
+                const bestIdx = argmax(probs);
+                const confidence = probs[bestIdx];
+                
+                if (confidence >= CONFIG.minConfidence) {
+                    const word = GESTURES[bestIdx];
+                    updateTranscript(word);
+                }
                 
             } catch (error) {
                 console.error('Inference error', error);
@@ -1275,6 +1322,25 @@
             } finally {
                 isInferring = false;
             }
+        }
+
+        // Calculate movement in hand region (indices 50+ after center normalization)
+        function calculateMovement(seq) {
+            if (seq.length < 2) return 0;
+            
+            const handStart = POSE_SIZE;  // Hand data starts at index 50
+            const allValues = [];
+            
+            for (let t = 0; t < seq.length; t++) {
+                for (let i = handStart; i < seq[t].length; i++) {
+                    allValues.push(seq[t][i]);
+                }
+            }
+            
+            if (allValues.length === 0) return 0;
+            const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+            const variance = allValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / allValues.length;
+            return Math.sqrt(variance);  // Standard deviation
         }
 
         // 标准 softmax 实现
@@ -1285,65 +1351,7 @@
             return exps.map(x => x / sumExps);
         }
 
-        function softmaxArgMax(values) {
-            if (!values || !values.length) return { index: null, confidence: 0 };
-            let max = -Infinity;
-            values.forEach((v) => { if (v > max) max = v; });
-            let sum = 0;
-            const expVals = values.map((v) => {
-                const ev = Math.exp(v - max);
-                sum += ev;
-                return ev;
-            });
-            let bestIdx = 0;
-            let bestProb = 0;
-            expVals.forEach((v, idx) => {
-                const prob = v / sum;
-                if (prob > bestProb) {
-                    bestProb = prob;
-                    bestIdx = idx;
-                }
-            });
-            return { index: bestIdx, confidence: bestProb };
-        }
-
-        function handlePrediction(probs) {
-            // 存储概率分布（与 cnn_realtime.py 的 last_predictions 一致）
-            lastPredictions.push(probs);
-            if (lastPredictions.length > CONFIG.predictionWindow) {
-                lastPredictions.shift();
-            }
-
-            // 对概率分布求平均（与 cnn_realtime.py 的 avg_probs = np.mean(last_predictions, axis=0) 一致）
-            const avgProbs = averageProbs(lastPredictions);
-            const bestIdx = argmax(avgProbs);
-            const confidence = avgProbs[bestIdx];
-
-            // 应用阈值（与 cnn_realtime.py 的 if confidence > CONFIDENCE_THRESHOLD 一致）
-            if (confidence >= CONFIG.minConfidence) {
-                const word = GESTURES[bestIdx];
-                updateTranscript(word);
-            }
-        }
-
-        // 对多个概率分布求平均
-        function averageProbs(probsList) {
-            if (probsList.length === 0) return new Array(GESTURES.length).fill(0);
-            
-            const numClasses = probsList[0].length;
-            const avg = new Array(numClasses).fill(0);
-            
-            for (let i = 0; i < numClasses; i++) {
-                for (let j = 0; j < probsList.length; j++) {
-                    avg[i] += probsList[j][i];
-                }
-                avg[i] /= probsList.length;
-            }
-            
-            return avg;
-        }
-
-        // 返回最大值的索引
+        // Return index of maximum value (argmax)
         function argmax(arr) {
             return arr.reduce((maxIdx, val, idx, array) => val > array[maxIdx] ? idx : maxIdx, 0);
         }
@@ -1360,7 +1368,7 @@
         function resetPrediction() {
             transcript.length = 0;
             sequence.length = 0;
-            lastPredictions.length = 0;
+            noHandCounter = 0;
             predictionText.textContent = 'Waiting...';
             sourceText.value = '';
         }
