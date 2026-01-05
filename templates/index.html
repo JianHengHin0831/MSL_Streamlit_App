@@ -139,7 +139,7 @@
         
         .content {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1.5fr 1fr;
             gap: 30px;
             align-items: start;
         }
@@ -208,6 +208,29 @@
             transform: none;
         }
         
+        #startBtn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        }
+        
+        #startBtn:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.35);
+        }
+        
+        #stopBtn {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+            color: white !important;
+        }
+        
+        #stopBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.35);
+        }
+        
+        #stopBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
         .btn-secondary {
             background: var(--secondary-btn-bg);
             color: var(--secondary-btn-text);
@@ -216,6 +239,16 @@
         
         .btn-secondary:hover {
             background: #cbd5f5;
+        }
+        
+        button[onclick="resetPrediction()"] {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+            color: white !important;
+        }
+        
+        button[onclick="resetPrediction()"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(139, 92, 246, 0.35);
         }
         
         .translate-section {
@@ -279,7 +312,7 @@
             font-size: 1em;
             resize: none;
             background: var(--container-bg);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
             color: var(--text-color);
         }
 
@@ -518,7 +551,7 @@
 
                 <div class="translate-box">
                     <div class="transcript-controls">
-                        <label class="translate-label" for="sourceText">Recognized transcript</label>
+                        <label class="translate-label" for="sourceText">📝 History</label>
                         <button id="speakBtn" class="speak-btn" title="Read transcript aloud" aria-label="Speak recognized transcript">🔊 Speak</button>
                     </div>
                     <textarea id="sourceText" class="translate-textarea" readonly placeholder="Recognized gestures will appear here..." aria-live="polite"></textarea>
