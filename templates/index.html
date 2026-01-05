@@ -434,15 +434,6 @@
             50% { opacity: 0.5; }
         }
         
-        /* Demo Video */
-        .demo-video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-            display: block;
-        }
-        
         /* Demo Overlay */
         .demo-overlay {
             position: absolute;
@@ -472,8 +463,8 @@
         }
         
         .demo-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
+            font-size: clamp(2.5em, 8vw, 4em);
+            margin-bottom: clamp(15px, 4vw, 20px);
             animation: demoIconBounce 2s infinite;
         }
         
@@ -483,15 +474,28 @@
         }
         
         .demo-content h3 {
-            font-size: 1.6em;
-            margin-bottom: 12px;
+            font-size: clamp(1.2em, 5vw, 1.6em);
+            margin-bottom: clamp(8px, 2vw, 12px);
             font-weight: 700;
         }
         
         .demo-content p {
-            font-size: 1em;
+            font-size: clamp(0.85em, 3vw, 1em);
             opacity: 0.9;
             line-height: 1.5;
+            margin: clamp(4px, 1vw, 8px) 0;
+        }
+        
+        @media (max-width: 768px) {
+            .demo-content {
+                padding: 30px 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .demo-content {
+                padding: 20px 12px;
+            }
         }
         
         /* Permission Modal */
@@ -1317,7 +1321,6 @@
                 <!-- Video Container with Demo & Overlay -->
                 <div class="video-container">
                     <video id="videoInput" autoplay playsinline muted></video>
-                    <video id="demoVideo" class="demo-video" autoplay loop muted playsinline></video>
                     <canvas id="overlayCanvas"></canvas>
                     
                     <!-- Demo Overlay Layer -->
@@ -1415,7 +1418,6 @@
         const themeToggle = document.getElementById('themeToggle');
         const textSizeSelect = document.getElementById('textSizeSelect');
         const startHint = document.getElementById('startHint');
-        const demoVideo = document.getElementById('demoVideo');
         const demoOverlay = document.getElementById('demoOverlay');
         const permissionModal = document.getElementById('permissionModal');
         const cameraStatusBar = document.getElementById('cameraStatusBar');
@@ -1997,22 +1999,6 @@
             }
         }
 
-        function initializeDemoVideo() {
-            if (demoVideo) {
-                demoVideo.src = './demo1.mp4';
-                demoVideo.loop = true;
-                demoVideo.muted = true;
-                demoVideo.autoplay = true;
-                // Enable autoplay with proper attributes
-                demoVideo.setAttribute('playsinline', '');
-                demoVideo.addEventListener('canplay', () => {
-                    demoVideo.play().catch(err => {
-                        console.log('Demo video autoplay:', err.message);
-                    });
-                });
-            }
-        }
-
         async function requestCameraPermission() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -2036,7 +2022,6 @@
 
         loadPreferences();
         renderGestures();
-        initializeDemoVideo();
         updateStartHint(false);
         updateCameraStatus();
         requestCameraPermission();  // Check permission on page load
