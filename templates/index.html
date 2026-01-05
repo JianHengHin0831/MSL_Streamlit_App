@@ -1452,7 +1452,15 @@
         const HAND_SIZE = 21 * 2;       // 21 landmarks * 2 (x, y only)
         const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;  // 50 + 42 + 42 = 134
         
-        const POSE_CONNECTIONS = [[0,1],[1,3],[0,2],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24]];
+        const POSE_CONNECTIONS = [
+            // Head connections (0-10)
+            [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],
+            // Shoulders and torso (11-24)
+            [9,10],[11,12],[11,13],[13,15],[12,14],[14,16],
+            [11,23],[12,24],[23,24]
+        ];
+
+
         const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
 
         const sequence = [];
@@ -1904,7 +1912,7 @@
                 isSpeaking = false;
                 speakBtn.textContent = '🔊 Speak';
                 speakBtn.setAttribute('aria-label', 'Speak recognized transcript');
-                showAlert('Speech synthesis error. Please try again.', 'error');
+                // showAlert('Speech synthesis error. Please try again.', 'error');
             };
 
             window.speechSynthesis.speak(utterance);
