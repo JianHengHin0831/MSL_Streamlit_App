@@ -1426,31 +1426,26 @@
         const fpsDisplay = document.getElementById('fpsDisplay');
 
         const CONFIG = {
-            windowSize: 30,              // Sequence length (30 frames, matching tcn_real_time.py)
-            minSequence: 30,             // Minimum frames before inference (match tcn: len(sequence) == 30)
-            movementThreshold: 0.012,    // Movement threshold for hand std (tcn_real_time.py)
-            minConfidence: 0.65,         // Minimum confidence threshold (matches TCN PREDICTION GATE)
-            noHandLimit: 60              // Frames to wait before clearing buffer (flicker protection) - increased for longer tolerance
+            windowSize: 30,
+            minConfidence: 0.8,
+            smoothingWindow: 5,
+            noHandPatience: 30
         };
 
-        // 按字母顺序排序，必须与 cnn_realtime.py 中 np.sort(actions) 一致
-        const GESTURES_UNSORTED = [
-            'abang', 'ada', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 
-            'assalamualaikum', 'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'baik_2', 'bapa',
-            'bapa_saudara', 'beli', 'beli_2', 'berapa', 'berjalan', 'berlari',
-            'bila', 'bola', 'boleh', 'bomba', 'buang', 'buat', 'curi', 'dapat', 'dari', 
-            'emak', 'emak_saudara', 'hari', 'hi', 'hujan', 'jahat', 'jangan', 'kakak', 
-            'keluarga', 'kereta', 'kesakitan', 'lelaki', 'lemak', 'main', 'mana', 'marah', 
-            'mari', 'masalah', 'minum', 'mohon', 'nasi', 'nasi_lemak', 'panas', 'panas_2', 
-            'pandai', 'pandai_2', 'payung', 'pen', 'perempuan', 'pergi_2', 'perlahan', 
-            'perlahan_2', 'pinjam', 'polis', 'pukul', 'ribut', 'saudara', 'sejuk', 'siapa', 
-            'sudah', 'tandas', 'tanya', 'teh_tarik', 'tolong'
-        ];
-        const GESTURES = GESTURES_UNSORTED.slice().sort();
+        // Exact 52-gesture vocabulary from tcn_real_time.py (sorted to mirror numpy np.sort)
+        const ACTIONS = [
+            'abang', 'anak_lelaki', 'anak_perempuan', 'apa', 'apa_khabar', 'assalamualaikum',
+            'ayah', 'bagaimana', 'bahasa_isyarat', 'baik', 'bapa_saudara', 'beli', 'beli_2',
+            'berapa', 'bila', 'bomba', 'buat', 'emak', 'emak_saudara', 'hari', 'hi', 'hujan',
+            'jahat', 'jangan', 'kakak', 'keluarga', 'kereta', 'lelaki', 'lemak', 'main', 'mana',
+            'marah', 'masalah', 'mohon', 'nasi', 'nasi_lemak', 'panas', 'panas_2', 'pandai',
+            'pandai_2', 'payung', 'perempuan', 'perlahan', 'perlahan_2', 'pinjam', 'polis',
+            'pukul', 'ribut', 'saudara', 'sejuk', 'siapa', 'tandas'
+        ].slice().sort();
 
-        const POSE_SIZE = 25 * 2;       // 25 landmarks * 2 (x, y only, no z or visibility)
-        const HAND_SIZE = 21 * 2;       // 21 landmarks * 2 (x, y only)
-        const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;  // 50 + 42 + 42 = 134
+        const POSE_SIZE = 25 * 4;       // 25 landmarks * (x, y, z, visibility)
+        const HAND_SIZE = 21 * 3;       // 21 hand landmarks * (x, y, z)
+        const FEATURE_SIZE = POSE_SIZE + HAND_SIZE * 2;  // 100 + 63 + 63 = 226
         
         const POSE_CONNECTIONS = [
             // Head connections (0-10)
@@ -1463,8 +1458,12 @@
 
         const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
 
-        const sequence = [];
+        const sequenceBuffer = [];
+        const predictionBuffer = [];
         const transcript = [];
+
+        let currentPrediction = 'Waiting...';
+        let currentConfidence = 0.0;
 
         let hands = null;
         let camera = null;
@@ -1497,7 +1496,7 @@
         function renderGestures() {
             if (!gesturesList) return;
             gesturesList.innerHTML = '';
-            GESTURES.forEach((gesture) => {
+            ACTIONS.forEach((gesture) => {
                 const item = document.createElement('li');
                 item.textContent = gesture.replace(/_/g, ' ');
                 item.setAttribute('tabindex', '0');
@@ -1654,6 +1653,7 @@
             stopBtn.disabled = true;
             updateStartHint(false);
             updateCameraStatus();
+            resetPrediction();
             
             // Show demo overlay again
             if (demoOverlay) {
@@ -1661,91 +1661,92 @@
             }
         }
 
-        // Center normalization using hip points (indices 22, 24 in pose landmarks)
-        // Matches tcn_real_time.py center_normalization function
+        // Center normalization mirrors numpy slicing in tcn_real_time.py
         function centerNormalization(sequence) {
-            const res = [];
-            for (let t = 0; t < sequence.length; t++) {
-                const frame = new Float32Array(sequence[t]);
-                const cx = (frame[22] + frame[24]) / 2;   // Match numpy indexing from tcn_real_time.py
-                const cy = (frame[23] + frame[25]) / 2;
-                
-                // Subtract center from all x,y coordinates
-                for (let i = 0; i < frame.length; i += 2) {
-                    frame[i] -= cx;        // x coordinate
-                    frame[i + 1] -= cy;    // y coordinate
+            return sequence.map((frame) => {
+                const normalized = frame.slice();
+                const leftShoulderX = normalized[44] || 0;   // landmark 11 x
+                const rightShoulderX = normalized[48] || 0;  // landmark 12 x
+                const leftShoulderY = normalized[45] || 0;   // landmark 11 y
+                const rightShoulderY = normalized[49] || 0;  // landmark 12 y
+                const cx = (leftShoulderX + rightShoulderX) / 2;
+                const cy = (leftShoulderY + rightShoulderY) / 2;
+
+                for (let i = 0; i < POSE_SIZE; i += 4) {
+                    normalized[i] -= cx;
+                    normalized[i + 1] -= cy;
                 }
-                res.push(frame);
-            }
-            return res;
+
+                for (let i = POSE_SIZE; i < FEATURE_SIZE; i += 3) {
+                    normalized[i] -= cx;
+                    normalized[i + 1] -= cy;
+                }
+
+                return normalized;
+            });
         }
 
         function onResults(results) {
             if (!isStreaming) return;
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
-            // Draw Pose landmarks and connections
             if (results.poseLandmarks && results.poseLandmarks.length > 0) {
                 drawConnectors(overlayCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#ff6b6b', lineWidth: 2 });
                 drawLandmarks(overlayCtx, results.poseLandmarks, { color: '#ffd93d', lineWidth: 2 });
             }
-            
-            // Draw Left Hand
+
             if (results.leftHandLandmarks && results.leftHandLandmarks.length > 0) {
                 drawConnectors(overlayCtx, results.leftHandLandmarks, HAND_CONNECTIONS, { color: '#f97316', lineWidth: 4 });
                 drawLandmarks(overlayCtx, results.leftHandLandmarks, { color: '#fcd34d', lineWidth: 2 });
             }
 
-            // Draw Right Hand
             if (results.rightHandLandmarks && results.rightHandLandmarks.length > 0) {
                 drawConnectors(overlayCtx, results.rightHandLandmarks, HAND_CONNECTIONS, { color: '#38bdf8', lineWidth: 4 });
                 drawLandmarks(overlayCtx, results.rightHandLandmarks, { color: '#bae6fd', lineWidth: 2 });
             }
 
-            // Check if hands are in frame (matching tcn_real_time.py hand detection)
-            const handsInFrame = results.leftHandLandmarks || results.rightHandLandmarks;
+            const handsVisible = results.leftHandLandmarks || results.rightHandLandmarks;
 
-            if (handsInFrame) {
-                noHandCounter = 0;  // Reset the "No Hand" counter because we found them
+            if (handsVisible) {
+                noHandCounter = 0;
                 const features = buildFeatureVector(results);
-                sequence.push(features);
-                if (sequence.length > CONFIG.windowSize) {
-                    sequence.shift();
+                sequenceBuffer.push(features);
+                if (sequenceBuffer.length > CONFIG.windowSize) {
+                    sequenceBuffer.shift();
                 }
 
-                if (sequence.length >= CONFIG.minSequence) {
+                if (sequenceBuffer.length === CONFIG.windowSize) {
                     runInference();
                 }
             } else {
-                // Hands are missing, but we WAIT before clearing (flicker protection)
-                noHandCounter++;
-                
-                if (noHandCounter > CONFIG.noHandLimit) {
-                    sequence.length = 0;  // Only clear buffer after patience expires
-                    predictionText.textContent = 'Idle (Hands Lost)';
+                noHandCounter += 1;
+                if (noHandCounter > CONFIG.noHandPatience) {
+                    sequenceBuffer.length = 0;
+                    predictionBuffer.length = 0;
+                    updatePredictionDisplay('Idle (No Hand)', 0);
                 }
             }
         }
 
         function buildFeatureVector(results) {
             const features = new Float32Array(FEATURE_SIZE);
-            
-            // 1. Extract Pose landmarks (25 landmarks * 2: x, y only - matching tcn_real_time.py)
+
             if (results.poseLandmarks && results.poseLandmarks.length > 0) {
-                for (let i = 0; i < Math.min(25, results.poseLandmarks.length); i++) {
+                for (let i = 0; i < 25; i++) {
                     const lm = results.poseLandmarks[i];
-                    const base = i * 2;
-                    features[base] = lm.x;
-                    features[base + 1] = lm.y;
+                    if (!lm) continue;
+                    const base = i * 4;
+                    features[base] = lm.x ?? 0;
+                    features[base + 1] = lm.y ?? 0;
+                    features[base + 2] = lm.z ?? 0;
+                    features[base + 3] = lm.visibility ?? 0;
                 }
             }
-            
-            // 2. Extract Left Hand landmarks (21 landmarks * 2: x, y only)
+
             if (results.leftHandLandmarks && results.leftHandLandmarks.length > 0) {
                 writeHand(results.leftHandLandmarks, POSE_SIZE, features);
             }
 
-            // 3. Extract Right Hand landmarks
             if (results.rightHandLandmarks && results.rightHandLandmarks.length > 0) {
                 writeHand(results.rightHandLandmarks, POSE_SIZE + HAND_SIZE, features);
             }
@@ -1754,65 +1755,50 @@
         }
 
         function writeHand(handLandmarks, offset, target) {
-            handLandmarks.forEach((lm, idx) => {
-                const base = offset + idx * 2;
-                target[base] = lm.x;
-                target[base + 1] = lm.y;
-            });
+            for (let i = 0; i < 21; i++) {
+                const lm = handLandmarks[i];
+                if (!lm) continue;
+                const base = offset + i * 3;
+                target[base] = lm.x ?? 0;
+                target[base + 1] = lm.y ?? 0;
+                target[base + 2] = lm.z ?? 0;
+            }
         }
 
         async function runInference() {
             if (!ortSession || isInferring) return;
+            if (sequenceBuffer.length !== CONFIG.windowSize) return;
             isInferring = true;
 
             try {
-                // Check for movement before inference (matching tcn_real_time.py movement check)
-                const movement = calculateMovement(sequence);
-                if (movement <= CONFIG.movementThreshold) {
-                    // Not enough movement detected, skip inference
-                    isInferring = false;
-                    return;
-                }
+                const normalizedSeq = centerNormalization(sequenceBuffer);
+                const flattened = new Float32Array(CONFIG.windowSize * FEATURE_SIZE);
+                normalizedSeq.forEach((frame, idx) => {
+                    flattened.set(frame, idx * FEATURE_SIZE);
+                });
 
-                // Apply center normalization (matching tcn_real_time.py)
-                const normalizedSeq = centerNormalization(sequence);
-                
-                const windowed = new Float32Array(CONFIG.windowSize * FEATURE_SIZE);
-                const pad = CONFIG.windowSize - normalizedSeq.length;
-                for (let i = 0; i < CONFIG.windowSize; i++) {
-                    const srcIdx = i - pad;
-                    if (srcIdx >= 0) {
-                        windowed.set(normalizedSeq[srcIdx], i * FEATURE_SIZE);
-                    }
-                }
-
-                const inputTensor = new ort.Tensor('float32', windowed, [1, CONFIG.windowSize, FEATURE_SIZE]);
-                const feeds = { [inputName]: inputTensor };
-                const results = await ortSession.run(feeds);
+                const inputTensor = new ort.Tensor('float32', flattened, [1, CONFIG.windowSize, FEATURE_SIZE]);
+                const results = await ortSession.run({ [inputName]: inputTensor });
                 const outputTensor = results[outputName] || Object.values(results)[0];
-                
-                // Get output data (compatible with ONNX Runtime 1.19.2)
-                let logits;
-                if (outputTensor.data) {
-                    logits = Array.from(outputTensor.data);
-                } else if (outputTensor instanceof Float32Array) {
-                    logits = Array.from(outputTensor);
-                } else {
-                    logits = outputTensor;
+                const logitsSource = outputTensor && outputTensor.data ? outputTensor.data : outputTensor;
+                const probs = softmax(Array.from(logitsSource));
+
+                predictionBuffer.push(probs);
+                if (predictionBuffer.length > CONFIG.smoothingWindow) {
+                    predictionBuffer.shift();
                 }
-                
-                // Calculate softmax probabilities
-                const probs = softmax(logits);
-                
-                // Get best prediction and check confidence (matching TCN prediction gate)
-                const bestIdx = argmax(probs);
-                const confidence = probs[bestIdx];
-                
+
+                const averaged = averageProbabilities(predictionBuffer);
+                if (!averaged.length) return;
+
+                const bestIdx = argmax(averaged);
+                const confidence = averaged[bestIdx] || 0;
+
                 if (confidence >= CONFIG.minConfidence) {
-                    const word = GESTURES[bestIdx];
+                    const word = ACTIONS[bestIdx] || 'Unknown';
+                    updatePredictionDisplay(word, confidence);
                     updateTranscript(word);
                 }
-                
             } catch (error) {
                 console.error('Inference error', error);
                 showAlert('Inference error: ' + error.message, 'error');
@@ -1821,23 +1807,25 @@
             }
         }
 
-        // Calculate movement in hand region (indices 50+ after center normalization)
-        function calculateMovement(seq) {
-            if (seq.length < 2) return 0;
-            
-            const handStart = POSE_SIZE;  // Hand data starts at index 50
-            const allValues = [];
-            
-            for (let t = 0; t < seq.length; t++) {
-                for (let i = handStart; i < seq[t].length; i++) {
-                    allValues.push(seq[t][i]);
-                }
+        function averageProbabilities(buffer) {
+            if (buffer.length === 0) return [];
+            const sums = new Array(buffer[0].length).fill(0);
+            buffer.forEach((probs) => {
+                probs.forEach((value, idx) => {
+                    sums[idx] += value;
+                });
+            });
+            return sums.map((sum) => sum / buffer.length);
+        }
+
+        function updatePredictionDisplay(label, confidence) {
+            currentPrediction = label;
+            currentConfidence = confidence ?? 0;
+            if (typeof confidence === 'number') {
+                predictionText.textContent = `${label} (${confidence.toFixed(2)})`;
+            } else {
+                predictionText.textContent = label;
             }
-            
-            if (allValues.length === 0) return 0;
-            const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
-            const variance = allValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / allValues.length;
-            return Math.sqrt(variance);  // Standard deviation
         }
 
         // 标准 softmax 实现
@@ -1855,7 +1843,6 @@
 
         function updateTranscript(word) {
             if (!word) return;
-            predictionText.textContent = word;
             if (transcript[transcript.length - 1] === word) return;
             transcript.push(word);
             sourceText.value = transcript.join(' ');
@@ -1864,9 +1851,10 @@
 
         function resetPrediction() {
             transcript.length = 0;
-            sequence.length = 0;
+            sequenceBuffer.length = 0;
+            predictionBuffer.length = 0;
             noHandCounter = 0;
-            predictionText.textContent = 'Waiting...';
+            updatePredictionDisplay('Waiting...', 0);
             sourceText.value = '';
         }
 
@@ -2030,6 +2018,7 @@
 
         loadPreferences();
         renderGestures();
+        updatePredictionDisplay('Waiting...', 0);
         updateStartHint(false);
         updateCameraStatus();
         requestCameraPermission();  // Check permission on page load
